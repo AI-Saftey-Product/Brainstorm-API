@@ -79,4 +79,32 @@ class ModelResponse(ModelBase):
 class ModelList(BaseModel):
     """Schema for listing multiple models."""
     models: List[ModelResponse]
+    count: int
+
+
+# New schemas for modalities endpoint
+class SubTypeInfo(BaseModel):
+    """Information about a model sub-type."""
+    name: str
+    description: Optional[str] = None
+
+
+class ModalityInfo(BaseModel):
+    """Information about a modality."""
+    name: str
+    description: str
+    sub_types: List[str]
+
+
+class ModalitiesResponse(BaseModel):
+    """Response schema for modalities endpoint."""
+    modalities: List[str]
+    modality_info: Dict[str, ModalityInfo]
+    count: int
+
+
+# New schemas for test categories
+class TestCategoriesResponse(BaseModel):
+    """Response schema for test categories endpoint."""
+    categories: List[str]
     count: int 

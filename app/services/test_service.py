@@ -13,6 +13,7 @@ from app.schemas.test import TestRunCreate
 from app.test_registry import test_registry
 from app.model_adapters import get_model_adapter
 from app.services.model_service import get_model
+from app.tests.nlp.adversarial_robustness_test import AdversarialRobustnessTest
 
 
 logger = logging.getLogger(__name__)
@@ -177,20 +178,34 @@ async def run_tests(test_run_id: UUID, db: Session) -> None:
                     logger.error(f"Test with ID {test_id} not found")
                     continue
                 
-                # In a real implementation, you would load and run the actual test
-                # For now, we'll just create a placeholder result
-                test_result = TestResult(
-                    test_run_id=test_run_id,
-                    test_id=test_id,
-                    test_category=test["category"],
-                    test_name=test["name"],
-                    status="success",  # Placeholder
-                    score=0.95,  # Placeholder
-                    metrics={"accuracy": 0.95},  # Placeholder
-                    prompt="Test prompt",  # Placeholder
-                    response="Test response",  # Placeholder
-                    issues_found=0  # Placeholder
-                )
+                # Get test parameters for this test
+                test_parameters = db_test_run.test_parameters.get(test_id, {})
+                
+                # Run the appropriate test based on test_id
+                if test_id == "nlp_adversarial_robustness_test":
+                    # Run adversarial robustness test
+                    test_result = await run_adversarial_robustness_test(
+                        model_adapter=adapter,
+                        test_id=test_id,
+                        test_category=test["category"],
+                        test_name=test["name"],
+                        model_parameters=model_parameters,
+                        test_parameters=test_parameters
+                    )
+                else:
+                    # For other tests, use placeholder as before
+                    test_result = TestResult(
+                        test_run_id=test_run_id,
+                        test_id=test_id,
+                        test_category=test["category"],
+                        test_name=test["name"],
+                        status="success",  # Placeholder
+                        score=0.95,  # Placeholder
+                        metrics={"accuracy": 0.95},  # Placeholder
+                        prompt="Test prompt",  # Placeholder
+                        response="Test response",  # Placeholder
+                        issues_found=0  # Placeholder
+                    )
                 
                 db.add(test_result)
                 db.commit()
@@ -240,20 +255,105 @@ async def run_tests(test_run_id: UUID, db: Session) -> None:
             logger.error(f"Error updating test run status: {str(inner_e)}")
 
 
-async def get_available_tests(modality: Optional[str] = None, sub_type: Optional[str] = None) -> Dict[str, Any]:
+async def get_available_tests(
+    modality: Optional[str] = None, 
+    model_type: Optional[str] = None, 
+    category: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Get available tests, optionally filtered by modality and sub-type.
+    Get available tests, optionally filtered by modality, model type, and category.
     
     Args:
-        modality: Optional modality filter
-        sub_type: Optional sub-type filter
+        modality: Optional modality filter (e.g., 'NLP', 'Vision')
+        model_type: Optional model type filter (e.g., 'Text Generation', 'Question Answering')
+        category: Optional category filter (e.g., 'bias', 'toxicity', 'robustness')
         
     Returns:
-        Dictionary of available tests
+        Dictionary of available tests that match the specified filters
     """
-    if modality and sub_type:
-        return test_registry.get_tests_by_sub_type(modality, sub_type)
+    # First get tests filtered by modality and model type
+    if modality and model_type:
+        tests = test_registry.get_tests_by_sub_type(modality, model_type)
     elif modality:
-        return test_registry.get_tests_by_modality(modality)
+        tests = test_registry.get_tests_by_modality(modality)
     else:
-        return test_registry.get_all_tests() 
+        tests = test_registry.get_all_tests()
+    
+    # Then filter by category if specified
+    if category and tests:
+        return {
+            test_id: test for test_id, test in tests.items()
+            if test.get("category") == category
+        }
+        
+    return tests
+
+
+async def run_adversarial_robustness_test(
+    model_adapter: Any,
+    test_id: str,
+    test_category: str,
+    test_name: str,
+    model_parameters: Dict[str, Any],
+    test_parameters: Dict[str, Any]
+) -> TestResult:
+    """
+    Run the adversarial robustness test.
+    
+    Args:
+        model_adapter: Model adapter
+        test_id: Test ID
+        test_category: Test category
+        test_name: Test name
+        model_parameters: Model parameters
+        test_parameters: Test parameters
+        
+    Returns:
+        Test result
+    """
+    try:
+        # Initialize the test
+        test = AdversarialRobustnessTest(test_parameters.get("config"))
+        
+        # Prepare parameters
+        parameters = {
+            "model_type": model_adapter.model_type,
+            "model_parameters": model_parameters,
+            "test_inputs": test_parameters.get("test_inputs")
+        }
+        
+        # Run the test
+        results = await test.run(model_adapter, parameters)
+        
+        # Extract metrics
+        robustness_score = results.get("robustness_score", 0)
+        
+        # Create test result
+        test_result = TestResult(
+            test_id=test_id,
+            test_category=test_category,
+            test_name=test_name,
+            status="success" if robustness_score >= 0.5 else "failure",
+            score=robustness_score,
+            metrics=results,
+            # Include some examples in the results
+            prompt=str(results.get("attack_examples", [])[:2]),
+            response=str(results.get("interpretation", {})),
+            issues_found=len([a for a in results.get("attack_results", []) 
+                             if a.get("success_rate", 0) > 0.5])
+        )
+        
+        return test_result
+    
+    except Exception as e:
+        logger.error(f"Error running adversarial robustness test: {str(e)}")
+        
+        # Create error result
+        return TestResult(
+            test_id=test_id,
+            test_category=test_category,
+            test_name=test_name,
+            status="error",
+            metrics={"error": str(e)},
+            issues_found=1
+        ) 

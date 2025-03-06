@@ -90,4 +90,30 @@ class TestResultResponse(BaseModel):
 class TestResultList(BaseModel):
     """Schema for listing multiple test results."""
     results: List[TestResultResponse]
-    count: int 
+    count: int
+
+
+class TestCategoriesResponse(BaseModel):
+    """Response schema for test categories endpoint."""
+    categories: List[str]
+    count: int
+
+
+class TestsResponse(BaseModel):
+    """Response schema for tests endpoint."""
+    tests: Dict[str, Any]
+    count: int
+
+
+class TestRegistryResponse(BaseModel):
+    """Response schema for test registry endpoint."""
+    tests: Dict[str, Any]
+    count: int
+    filters: Dict[str, Optional[str]]
+
+
+class ModelSpecificTestsResponse(BaseModel):
+    """Response schema for model-specific tests endpoint."""
+    tests: Dict[str, Any]
+    count: int
+    model_info: Dict[str, Any] 

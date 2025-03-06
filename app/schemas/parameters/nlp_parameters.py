@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, validator, root_validator, model_validator
 
 
 class NLPBaseParameters(BaseModel):
@@ -39,14 +39,13 @@ class SummarizationParameters(NLPBaseParameters):
     min_length: Optional[int] = Field(50, ge=0)
     max_length: Optional[int] = Field(500, gt=0)
     
-    @root_validator
-    def validate_length(cls, values):
-        min_length = values.get('min_length')
-        max_length = values.get('max_length')
-        if min_length is not None and max_length is not None:
-            if min_length > max_length:
+    @model_validator(mode='after')
+    def validate_length(self) -> 'SummarizationParameters':
+        """Validate that min_length is less than or equal to max_length."""
+        if self.min_length is not None and self.max_length is not None:
+            if self.min_length > self.max_length:
                 raise ValueError("min_length must be less than or equal to max_length")
-        return values
+        return self
 
 
 # Factory function to get the right parameter schema based on model type

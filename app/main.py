@@ -31,8 +31,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API router
+# Include API router with version prefix
 app.include_router(api_router, prefix=f"/api/{settings.API_VERSION}")
+
+# Include API router without version prefix for compatibility with frontend
+app.include_router(api_router, prefix="/api")
 
 
 @app.get("/", tags=["status"])

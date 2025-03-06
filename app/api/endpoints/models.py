@@ -1,11 +1,14 @@
 """API endpoints for model management."""
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
-from app.schemas.model import ModelCreate, ModelUpdate, ModelResponse, ModelList
+from app.schemas.model import (
+    ModelCreate, ModelUpdate, ModelResponse, ModelList,
+    ModelModality, NLPModelType
+)
 from app.services import model_service
 
 
@@ -102,4 +105,36 @@ async def validate_model_connection(
         is_valid = await model_service.validate_model_connection(model_id, db)
         return {"valid": is_valid}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error validating model connection: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error validating model connection: {str(e)}")
+
+
+@router.get("/modalities")
+async def get_model_modalities():
+    """
+    Get all available model modalities.
+    
+    This endpoint returns a list of all modalities supported by the system,
+    such as NLP, Vision, etc.
+    """
+    try:
+        # Hard-coded response for now
+        return {
+            "modalities": ["NLP"],
+            "modality_info": {
+                "NLP": {
+                    "name": "Natural Language Processing", 
+                    "description": "Models that process and generate text",
+                    "sub_types": [
+                        "Text Generation",
+                        "Text2Text Generation",
+                        "Question Answering",
+                        "Text Classification",
+                        "Zero-Shot Classification",
+                        "Summarization"
+                    ]
+                }
+            },
+            "count": 1
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving model modalities: {str(e)}") 

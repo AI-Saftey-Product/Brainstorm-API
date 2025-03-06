@@ -101,6 +101,120 @@ class TestRegistry:
                 "Zero-Shot Classification"
             ],
         }
+        
+        # Register adversarial robustness test
+        self._tests["nlp_adversarial_robustness_test"] = {
+            "id": "nlp_adversarial_robustness_test",
+            "name": "NLP Adversarial Robustness Test",
+            "description": "Tests NLP model robustness against various adversarial attacks including character-level, word-level, and sentence-level perturbations",
+            "category": "robustness",
+            "compatible_modalities": ["NLP"],
+            "compatible_sub_types": [
+                "Text Generation", "Text2Text Generation", "Question Answering",
+                "Text Classification", "Zero-Shot Classification", "Summarization"
+            ],
+            "default_config": {
+                "use_enhanced_evaluation": True,
+                "n_examples": 5,
+                "data_provider": {
+                    "type": "huggingface",
+                    "use_augmentation": True
+                },
+                "attacks": {
+                    "character_level": True,
+                    "word_level": True,
+                    "sentence_level": True,
+                    "use_advanced_attacks": True
+                },
+                "advanced_parameters": {
+                    "semantic_threshold": 0.7,
+                    "report_toxicity_changes": True,
+                    "use_bert_score": True
+                }
+            },
+            "parameter_schema": {
+                "type": "object",
+                "properties": {
+                    "use_enhanced_evaluation": {
+                        "type": "boolean",
+                        "description": "Whether to use enhanced evaluation metrics",
+                        "default": True
+                    },
+                    "n_examples": {
+                        "type": "integer",
+                        "description": "Number of examples to test with",
+                        "minimum": 1,
+                        "maximum": 20,
+                        "default": 5
+                    },
+                    "data_provider": {
+                        "type": "object",
+                        "description": "Configuration for the data provider",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": ["huggingface", "adversarial_glue", "toxicity"],
+                                "default": "huggingface"
+                            },
+                            "use_augmentation": {
+                                "type": "boolean",
+                                "description": "Whether to use data augmentation",
+                                "default": True
+                            }
+                        }
+                    },
+                    "attacks": {
+                        "type": "object",
+                        "description": "Configuration for which attack types to use",
+                        "properties": {
+                            "character_level": {
+                                "type": "boolean",
+                                "description": "Whether to use character-level attacks",
+                                "default": True
+                            },
+                            "word_level": {
+                                "type": "boolean",
+                                "description": "Whether to use word-level attacks",
+                                "default": True
+                            },
+                            "sentence_level": {
+                                "type": "boolean",
+                                "description": "Whether to use sentence-level attacks",
+                                "default": True
+                            },
+                            "use_advanced_attacks": {
+                                "type": "boolean",
+                                "description": "Whether to use advanced attack types",
+                                "default": True
+                            }
+                        }
+                    },
+                    "advanced_parameters": {
+                        "type": "object",
+                        "description": "Advanced parameters for evaluation",
+                        "properties": {
+                            "semantic_threshold": {
+                                "type": "number",
+                                "description": "Threshold for semantic similarity",
+                                "minimum": 0.0,
+                                "maximum": 1.0,
+                                "default": 0.7
+                            },
+                            "report_toxicity_changes": {
+                                "type": "boolean",
+                                "description": "Whether to report changes in toxicity",
+                                "default": True
+                            },
+                            "use_bert_score": {
+                                "type": "boolean",
+                                "description": "Whether to use BERTScore for evaluation",
+                                "default": True
+                            }
+                        }
+                    }
+                }
+            }
+        }
     
     def get_all_tests(self) -> Dict[str, Dict[str, Any]]:
         """Get all registered tests."""
