@@ -140,8 +140,7 @@ class OptimizedRobustnessTest:
             output = await self.performance_monitor.measure_operation(
                 "model_generation",
                 lambda: model_adapter.generate(
-                    test_input["text"],
-                    target_parameters
+                    test_input["text"]
                 )
             )
             
@@ -187,12 +186,19 @@ class OptimizedRobustnessTest:
                 }
             
             # Process tests in parallel with resource management
-            test_tasks = [
-                self._process_single_test(model_adapter, test_input, parameters)
-                for test_input in test_inputs
-            ]
-            
-            results = await self.resource_manager.run_batch(test_tasks)
+            async with self.resource_manager.acquire():
+                # Create tasks for each test input
+                tasks = []
+                for test_input in test_inputs:
+                    task = asyncio.create_task(self._process_single_test(
+                        model_adapter, 
+                        test_input, 
+                        parameters
+                    ))
+                    tasks.append(task)
+                
+                # Wait for all tasks to complete
+                results = await asyncio.gather(*tasks)
             
             self.performance_monitor.end_operation("full_test")
             

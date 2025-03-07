@@ -43,6 +43,16 @@ def cleanup_finished_tasks():
     if done_tasks:
         logger.info(f"Cleaned up {len(done_tasks)} finished test tasks. {len(active_test_tasks)} still active.")
 
+def serialize_datetime(obj: Any) -> Any:
+    """Convert datetime objects to ISO format strings for JSON serialization."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {key: serialize_datetime(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_datetime(item) for item in obj]
+    return obj
+
 async def create_test_run(test_run_data) -> Dict[str, Any]:
     """
     Create a new test run using in-memory storage.
@@ -137,7 +147,7 @@ async def get_test_runs(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]
     return sorted_runs[skip:skip+limit]
 
 
-async def get_test_results(test_run_id: UUID) -> List[Dict[str, Any]]:
+async def get_test_results(test_run_id: UUID) -> Dict[str, Any]:
     """
     Get test results for a test run from in-memory storage.
     
@@ -145,9 +155,82 @@ async def get_test_results(test_run_id: UUID) -> List[Dict[str, Any]]:
         test_run_id: Test run ID
         
     Returns:
-        List of test results
+        Dictionary containing results array and compliance scores
     """
-    return [r for r in test_results.values() if r.get("test_run_id") == test_run_id]
+    # Convert UUID to string for comparison since we store test_run_ids as strings
+    test_run_id_str = str(test_run_id)
+    logger.debug(f"Getting test results for test_run_id: {test_run_id_str}")
+    logger.debug(f"Total test results in storage: {len(test_results)}")
+    
+    # Get all results for this test run
+    raw_results = [r for r in test_results.values() if r.get("test_run_id") == test_run_id_str]
+    logger.debug(f"Found {len(raw_results)} results for test_run_id {test_run_id_str}")
+    
+    # Format results according to frontend schema
+    formatted_results = []
+    compliance_scores = {}
+    
+    for result in raw_results:
+        # Format individual test result
+        formatted_result = {
+            "test_id": result["test_id"],
+            "test_name": result["test_name"],
+            "test_category": result["test_category"],
+            "status": result["status"],
+            "score": result["score"],
+            "issues_found": result["issues_found"],
+            "created_at": result["created_at"].isoformat() if isinstance(result["created_at"], datetime) else result["created_at"],
+            "analysis": result.get("analysis", {})
+        }
+        
+        # Format metrics if present
+        if "metrics" in result:
+            formatted_result["metrics"] = {}
+            
+            # Format optimization stats if present
+            if "optimization_stats" in result["metrics"]:
+                formatted_result["metrics"]["optimization_stats"] = {
+                    "performance_stats": {
+                        "total_time": result["metrics"]["optimization_stats"].get("total_time", 0),
+                        "operation_count": result["metrics"]["optimization_stats"].get("operation_count", 0)
+                    }
+                }
+            
+            # Format test results if present
+            if "test_results" in result["metrics"]:
+                formatted_result["metrics"]["test_results"] = {
+                    "performance_metrics": {
+                        "total_time": result["metrics"]["test_results"].get("total_time", 0),
+                        "n_examples": result["metrics"]["test_results"].get("n_examples", 0)
+                    },
+                    "results": [
+                        {
+                            "input": item.get("input", ""),
+                            "output": item.get("output", ""),
+                            "expected": item.get("expected", "")
+                        }
+                        for item in result["metrics"]["test_results"].get("results", [])
+                    ]
+                }
+        
+        formatted_results.append(formatted_result)
+        
+        # Update compliance scores
+        category = result["test_category"]
+        if category not in compliance_scores:
+            compliance_scores[category] = {"total": 0, "passed": 0}
+        compliance_scores[category]["total"] += 1
+        if result["status"] == "success":
+            compliance_scores[category]["passed"] += 1
+    
+    # Log the formatted results for debugging
+    logger.debug(f"Formatted results: {formatted_results}")
+    logger.debug(f"Compliance scores: {compliance_scores}")
+    
+    return {
+        "results": formatted_results,
+        "compliance_scores": compliance_scores
+    }
 
 
 async def run_tests(test_run_id: UUID) -> None:
@@ -188,13 +271,13 @@ async def run_tests(test_run_id: UUID) -> None:
         logger.debug(f"Sending initial WebSocket notification for test run {test_run_id}")
         await websocket_manager.send_notification(
             str(test_run_id), 
-            {
+            serialize_datetime({
                 "type": "test_status_update",
                 "status": "running",
                 "test_run_id": str(test_run_id),
                 "message": "Test run started",
                 "summary": test_run["summary_results"]
-            }
+            })
         )
     except Exception as e:
         logger.error(f"Failed to send WebSocket notification: {str(e)}", exc_info=True)
@@ -314,13 +397,13 @@ async def run_tests(test_run_id: UUID) -> None:
             logger.debug("Sending initialization complete notification")
             await websocket_manager.send_notification(
                 str(test_run_id),
-                {
+                serialize_datetime({
                     "type": "test_status_update",
                     "status": "running",
                     "test_run_id": str(test_run_id),
                     "message": "Model initialization complete",
                     "summary": test_run["summary_results"]
-                }
+                })
             )
         except Exception as e:
             logger.error(f"Failed to send initialization notification: {str(e)}", exc_info=True)
@@ -355,13 +438,13 @@ async def run_tests(test_run_id: UUID) -> None:
         # Notify clients about test counts
         await websocket_manager.send_notification(
             str(test_run_id),
-            {
+            serialize_datetime({
                 "type": "test_status_update",
                 "status": "running",
                 "test_run_id": str(test_run_id),
                 "message": f"Starting tests: {total_tests} tests to run",
                 "summary": test_run["summary_results"]
-            }
+            })
         )
         
         # Process each test
@@ -376,8 +459,8 @@ async def run_tests(test_run_id: UUID) -> None:
                     
                     # Create error result
                     error_result = {
-                        "id": uuid4(),
-                        "test_run_id": test_run_id,
+                        "id": str(uuid4()),  # Convert UUID to string
+                        "test_run_id": str(test_run_id),  # Convert UUID to string
                         "test_id": test_id,
                         "test_category": "unknown",
                         "test_name": test_id,
@@ -414,13 +497,13 @@ async def run_tests(test_run_id: UUID) -> None:
                 # Notify clients about current test
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_status_update",
                         "status": "running",
                         "test_run_id": str(test_run_id),
                         "message": f"Running test {test_info.get('name', test_id)}",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
                 
                 # Run appropriate test based on test ID
@@ -448,8 +531,8 @@ async def run_tests(test_run_id: UUID) -> None:
                     
                     # Create not implemented result
                     result = {
-                        "id": uuid4(),
-                        "test_run_id": test_run_id,
+                        "id": str(uuid4()),  # Convert UUID to string
+                        "test_run_id": str(test_run_id),  # Convert UUID to string
                         "test_id": test_id,
                         "test_category": test_info["category"],
                         "test_name": test_info["name"],
@@ -464,20 +547,22 @@ async def run_tests(test_run_id: UUID) -> None:
                     }
                 
                 # Set the test_run_id
-                result["test_run_id"] = test_run_id
+                result["test_run_id"] = str(test_run_id)  # Convert UUID to string
                 
                 # Store result
                 results[test_id] = result
                 test_results[result["id"]] = result
+                logger.debug(f"Stored test result with ID {result['id']} for test_run_id {test_run_id}")
+                logger.debug(f"Current test results count: {len(test_results)}")
                 
                 # Notify clients about this specific result
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_result",
                         "test_run_id": str(test_run_id),
                         "result": result
-                    }
+                    })
                 )
                 
                 # Update summary
@@ -507,13 +592,13 @@ async def run_tests(test_run_id: UUID) -> None:
                 # Notify clients about updated summary
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_status_update",
                         "status": "running",
                         "test_run_id": str(test_run_id),
                         "message": f"Completed {completed}/{total_tests} tests",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
                 
             except Exception as e:
@@ -521,8 +606,8 @@ async def run_tests(test_run_id: UUID) -> None:
                 
                 # Create error result
                 error_result = {
-                    "id": uuid4(),
-                    "test_run_id": test_run_id,
+                    "id": str(uuid4()),  # Convert UUID to string
+                    "test_run_id": str(test_run_id),  # Convert UUID to string
                     "test_id": test_id,
                     "test_category": test_info["category"] if test_info else "unknown",
                     "test_name": test_info["name"] if test_info else test_id,
@@ -555,13 +640,13 @@ async def run_tests(test_run_id: UUID) -> None:
                 # Notify clients about updated summary
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_status_update",
                         "status": "running",
                         "test_run_id": str(test_run_id),
                         "message": f"Completed {completed}/{total_tests} tests",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
         
         # Update test run
@@ -584,14 +669,14 @@ async def run_tests(test_run_id: UUID) -> None:
         try:
             await websocket_manager.send_notification(
                 str(test_run_id),
-                {
+                serialize_datetime({
                     "type": "test_complete",
                     "status": "completed",
                     "test_run_id": str(test_run_id),
                     "message": f"All tests completed: {passed} passed, {failed} failed, {errors} errors",
                     "summary": test_run["summary_results"],
                     "results_available": True
-                }
+                })
             )
         except Exception as e:
             logger.error(f"Failed to send completion notification: {str(e)}", exc_info=True)
@@ -617,13 +702,13 @@ async def run_tests(test_run_id: UUID) -> None:
             try:
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_failed",
                         "status": "failed",
                         "test_run_id": str(test_run_id),
                         "message": f"Test run failed: {str(e)}",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
             except Exception as notify_err:
                 logger.error(f"Failed to send failure notification: {str(notify_err)}", exc_info=True)
@@ -723,7 +808,7 @@ async def run_adversarial_robustness_test(
         if not api_available:
             logger.error(f"Cannot connect to model API for {test_id}")
             return {
-                "id": uuid4(),
+                "id": str(uuid4()),  # Convert UUID to string
                 "test_run_id": None,  # Will be set by caller
                 "test_id": test_id,
                 "test_category": test_category,
@@ -746,7 +831,7 @@ async def run_adversarial_robustness_test(
         
         # Create result with consistent structure
         return {
-            "id": uuid4(),
+            "id": str(uuid4()),  # Convert UUID to string
             "test_run_id": None,  # Will be set by caller
             "test_id": test_id,
             "test_category": test_category,
@@ -768,7 +853,7 @@ async def run_adversarial_robustness_test(
     except Exception as e:
         logger.error(f"Error running adversarial robustness test: {str(e)}")
         return {
-            "id": uuid4(),
+            "id": str(uuid4()),  # Convert UUID to string
             "test_run_id": None,  # Will be set by caller
             "test_id": test_id,
             "test_category": test_category,
@@ -795,17 +880,6 @@ async def run_bias_test(
     """
     Run a basic bias test for an NLP model.
     This is a simple implementation for testing purposes.
-    
-    Args:
-        model_adapter: Initialized model adapter
-        test_id: Test ID
-        test_category: Test category
-        test_name: Test name
-        model_parameters: Model-specific parameters
-        test_parameters: Test-specific parameters
-        
-    Returns:
-        Dictionary with test results
     """
     try:
         logger.info(f"Running bias test with parameters: {test_parameters}")
@@ -815,7 +889,7 @@ async def run_bias_test(
         if not api_available:
             logger.error(f"Cannot connect to model API for {test_id}")
             return {
-                "id": uuid4(),
+                "id": str(uuid4()),  # Convert UUID to string
                 "test_run_id": None,  # Will be set by caller
                 "test_id": test_id,
                 "test_category": test_category,
@@ -853,7 +927,7 @@ async def run_bias_test(
         # If all responses failed, mark the test as failed
         if len(errors) == len(test_prompts):
             return {
-                "id": uuid4(),
+                "id": str(uuid4()),  # Convert UUID to string
                 "test_run_id": None,  # Will be set by caller
                 "test_id": test_id,
                 "test_category": test_category,
@@ -872,15 +946,15 @@ async def run_bias_test(
         issues_found = sum(1 for r in responses if any(term in r["response"].lower() 
                                                    for term in ["stereotype", "all", "always", "never"]))
         
-        # Create result object - this is a placeholder implementation
+        # Create result object with consistent formatting
         result = {
-            "id": uuid4(),
-            "test_run_id": None,  # This will be set by the caller
+            "id": str(uuid4()),  # Convert UUID to string
+            "test_run_id": None,  # Will be set by caller
             "test_id": test_id,
             "test_category": test_category,
             "test_name": test_name,
-            "status": "success",  # Assuming test ran successfully
-            "score": 0.8,  # Placeholder score
+            "status": "success",
+            "score": 0.8,
             "metrics": {
                 "bias_score": 0.2,
                 "responses_analyzed": len(responses),
@@ -907,9 +981,9 @@ async def run_bias_test(
         logger.error(f"Error running bias test: {str(e)}")
         logger.exception(e)
         
-        # Return error result
+        # Return error result with consistent formatting
         return {
-            "id": uuid4(),
+            "id": str(uuid4()),  # Convert UUID to string
             "test_run_id": None,  # Will be set by caller
             "test_id": test_id,
             "test_category": test_category,
