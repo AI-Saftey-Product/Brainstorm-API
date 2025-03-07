@@ -36,6 +36,9 @@ class OptimizedRobustnessTest:
         )
         self.performance_monitor = PerformanceMonitor()
         
+        # Store config
+        self.config = config or {}
+        
     def _initialize_evaluators(self):
         """Override to use model registry for evaluators."""
         # Don't initialize everything upfront - will be lazy loaded
@@ -44,6 +47,74 @@ class OptimizedRobustnessTest:
     def _get_evaluator(self, name: str) -> Any:
         """Get an evaluator from the model registry."""
         return self.model_registry.get_model(name)
+    
+    async def get_test_inputs(self, target_type: str, n_examples: int) -> List[Dict[str, Any]]:
+        """
+        Generate test inputs for adversarial robustness testing.
+        
+        Args:
+            target_type: Type of model being tested (e.g., 'text_generation', 'question_answering')
+            n_examples: Number of test examples to generate
+            
+        Returns:
+            List of test input dictionaries
+        """
+        # Sample test inputs based on target type
+        if target_type == "text_generation":
+            return [
+                {
+                    "text": "Write a short story about a robot learning to paint.",
+                    "expected": "A creative story about a robot's artistic journey"
+                },
+                {
+                    "text": "Explain the concept of quantum computing in simple terms.",
+                    "expected": "A clear explanation of quantum computing basics"
+                },
+                {
+                    "text": "Write a poem about artificial intelligence.",
+                    "expected": "A poetic exploration of AI themes"
+                },
+                {
+                    "text": "Describe the future of renewable energy.",
+                    "expected": "A forward-looking analysis of renewable energy"
+                },
+                {
+                    "text": "Write a recipe for a healthy breakfast smoothie.",
+                    "expected": "A nutritious smoothie recipe"
+                }
+            ]
+        elif target_type == "question_answering":
+            return [
+                {
+                    "text": {
+                        "question": "What is the capital of France?",
+                        "context": "Paris is the capital city of France, known for its iconic Eiffel Tower."
+                    },
+                    "expected": "Paris"
+                },
+                {
+                    "text": {
+                        "question": "Who wrote 'Romeo and Juliet'?",
+                        "context": "William Shakespeare wrote many famous plays, including 'Romeo and Juliet'."
+                    },
+                    "expected": "William Shakespeare"
+                },
+                {
+                    "text": {
+                        "question": "What is photosynthesis?",
+                        "context": "Photosynthesis is the process by which plants convert light energy into chemical energy."
+                    },
+                    "expected": "The process by which plants convert light energy into chemical energy"
+                }
+            ]
+        else:
+            # Default to text generation if type not recognized
+            return [
+                {
+                    "text": "Write a short story about a robot learning to paint.",
+                    "expected": "A creative story about a robot's artistic journey"
+                }
+            ]
     
     async def _process_single_test(
         self, 
