@@ -1,6 +1,11 @@
 """Base classes for adversarial attacks."""
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Union, Tuple
+import logging
+from difflib import SequenceMatcher
+from app.model_adapters.base_adapter import BaseModelAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class AdversarialAttack(ABC):
@@ -51,125 +56,38 @@ class RobustnessTester:
         """
         self.attacks.append(attack)
     
-    async def run_tests(self, 
-                         model_adapter: Any, 
-                         test_inputs: List[Dict[str, Any]], 
-                         model_parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Run all registered attacks on the test inputs.
-        
-        Args:
-            model_adapter: Model adapter to use for testing
-            test_inputs: List of test inputs with expected outputs
-            model_parameters: Parameters for model invocation
-            
-        Returns:
-            Test results containing metrics and example attacks
-        """
-        results = {
-            "clean_accuracy": 0.0,
-            "adversarial_accuracy": 0.0,
-            "adversarial_success_rate": 0.0,
-            "accuracy_degradation": 0.0,
-            "robustness_score": 0.0,
-            "attack_results": [],
-            "attack_examples": []
-        }
-        
-        # First, evaluate on clean inputs to get baseline
-        clean_correct = 0
-        for input_item in test_inputs:
-            text = input_item.get("text", "")
-            expected = input_item.get("expected", "")
-            
-            # Run model on clean input
-            model_output = await model_adapter.invoke(text, model_parameters)
-            
-            # Check if output matches expected (simplified)
-            is_correct = self._evaluate_output(model_output, expected)
-            if is_correct:
-                clean_correct += 1
-        
-        clean_accuracy = clean_correct / len(test_inputs) if test_inputs else 0
-        results["clean_accuracy"] = clean_accuracy
-        
-        # Track results per attack
-        attack_results = []
-        attack_examples = []
-        
-        # Then, evaluate on adversarial inputs
-        total_adv_correct = 0
-        total_adv_attempts = 0
-        
-        for attack in self.attacks:
-            attack_name = attack.name
-            adv_correct = 0
-            adv_attempts = 0
-            examples = []
-            
-            for input_item in test_inputs:
-                text = input_item.get("text", "")
-                expected = input_item.get("expected", "")
+    async def run_tests(self, model_adapter: BaseModelAdapter, test_inputs: List[Dict[str, Any]], target_parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Run basic tests on the model."""
+        try:
+            results = []
+            for test_input in test_inputs:
+                # Generate output using model
+                output = await model_adapter.generate(
+                    test_input["text"],
+                    target_parameters
+                )
                 
-                # Apply the attack
-                perturbed_text = await attack.perturb(text)
-                
-                # Only count examples that were correctly classified originally
-                model_output = await model_adapter.invoke(text, model_parameters)
-                original_correct = self._evaluate_output(model_output, expected)
-                
-                if original_correct:
-                    adv_attempts += 1
-                    
-                    # Run model on adversarial input
-                    adv_output = await model_adapter.invoke(perturbed_text, model_parameters)
-                    
-                    # Check if output still matches expected
-                    adv_correct_result = self._evaluate_output(adv_output, expected)
-                    if adv_correct_result:
-                        adv_correct += 1
-                    
-                    # Add example
-                    if len(examples) < 5 and not adv_correct_result:  # Limit to 5 examples per attack
-                        examples.append({
-                            "original_text": text,
-                            "perturbed_text": perturbed_text,
-                            "expected_output": expected,
-                            "model_output": adv_output,
-                            "attack_successful": not adv_correct_result
-                        })
+                # Store result
+                result = {
+                    "input": test_input["text"],
+                    "output": output,
+                    "expected": test_input.get("expected", ""),
+                    "target_type": target_parameters.get("target_type", "text_generation")
+                }
+                results.append(result)
             
-            # Calculate attack-specific metrics
-            attack_success_rate = (adv_attempts - adv_correct) / adv_attempts if adv_attempts > 0 else 0
-            attack_results.append({
-                "attack_name": attack_name,
-                "success_rate": attack_success_rate,
-                "attempts": adv_attempts,
-                "correct": adv_correct
-            })
+            return {
+                "status": "success",
+                "results": results,
+                "n_examples": len(results)
+            }
             
-            attack_examples.extend(examples)
-            
-            # Add to totals
-            total_adv_correct += adv_correct
-            total_adv_attempts += adv_attempts
-        
-        # Calculate overall metrics
-        if total_adv_attempts > 0:
-            adv_accuracy = total_adv_correct / total_adv_attempts
-            asr = (total_adv_attempts - total_adv_correct) / total_adv_attempts
-            accuracy_degradation = clean_accuracy - adv_accuracy
-            robustness_score = adv_accuracy - asr  # Simple robustness score
-            
-            results["adversarial_accuracy"] = adv_accuracy
-            results["adversarial_success_rate"] = asr
-            results["accuracy_degradation"] = accuracy_degradation
-            results["robustness_score"] = robustness_score
-        
-        results["attack_results"] = attack_results
-        results["attack_examples"] = attack_examples
-        
-        return results
+        except Exception as e:
+            logger.error(f"Error running tests: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
     
     def _evaluate_output(self, model_output: Any, expected: Any) -> bool:
         """
@@ -195,4 +113,44 @@ class RobustnessTester:
         
         # For now, just check if the expected text is in the model output
         # In practice, we'd use task-appropriate metrics (BLEU, ROUGE, etc.)
-        return expected_text.lower() in model_text.lower() 
+        return expected_text.lower() in model_text.lower()
+
+    def _get_input_text(self, test_input: Dict[str, Any]) -> str:
+        """
+        Extract input text from test input.
+        
+        Args:
+            test_input: Test input dictionary
+            
+        Returns:
+            Text to use for testing
+        """
+        if isinstance(test_input.get("text"), str):
+            return test_input["text"]
+        elif isinstance(test_input.get("text"), dict):
+            # Handle structured inputs like question answering
+            if "question" in test_input["text"] and "context" in test_input["text"]:
+                return f"Question: {test_input['text']['question']}\nContext: {test_input['text']['context']}"
+            elif "premise" in test_input["text"] and "hypothesis" in test_input["text"]:
+                return f"Premise: {test_input['text']['premise']}\nHypothesis: {test_input['text']['hypothesis']}"
+        
+        # Default fallback
+        return str(test_input.get("text", ""))
+        
+    def _is_attack_successful(self, original_output: str, perturbed_output: str, expected_output: Any) -> bool:
+        """
+        Determine if an attack was successful.
+        
+        Args:
+            original_output: Model output for original input
+            perturbed_output: Model output for perturbed input
+            expected_output: Expected output (may be used for some success criteria)
+            
+        Returns:
+            True if the attack was successful (model behavior changed significantly)
+        """
+        # Simple string similarity check
+        similarity = SequenceMatcher(None, original_output, perturbed_output).ratio()
+        
+        # Consider attack successful if outputs differ significantly
+        return similarity < 0.7  # Threshold can be adjusted 

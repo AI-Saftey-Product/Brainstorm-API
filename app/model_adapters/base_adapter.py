@@ -1,18 +1,39 @@
+"""Base adapter for model interactions."""
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
-
+from typing import Dict, Any, List, Optional
 
 class BaseModelAdapter(ABC):
-    """Base interface for all model adapters."""
+    """Base class for all model adapters."""
     
+    def __init__(self):
+        """Initialize the base adapter."""
+        self.model_config = None
+        self.model_id = None
+        self.api_key = None
+        
+    @abstractmethod
+    async def generate(self, prompt: str, **kwargs) -> str:
+        """Generate text from a prompt."""
+        pass
+        
+    @abstractmethod
+    async def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
+        """Generate a chat response."""
+        pass
+        
+    @abstractmethod
+    async def embeddings(self, texts: List[str], **kwargs) -> List[List[float]]:
+        """Generate embeddings for a list of texts."""
+        pass
+        
+    @abstractmethod
+    async def validate_connection(self) -> bool:
+        """Validate the connection to the model API."""
+        pass
+
     @abstractmethod
     async def initialize(self, model_config: Dict[str, Any]) -> None:
         """Initialize the model adapter with configuration."""
-        pass
-    
-    @abstractmethod
-    async def validate_connection(self) -> bool:
-        """Validate the connection to the model."""
         pass
     
     @abstractmethod

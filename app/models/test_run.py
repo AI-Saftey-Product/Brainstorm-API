@@ -11,7 +11,7 @@ class TestRun(Base):
     __tablename__ = "test_runs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    model_id = Column(UUID(as_uuid=True), ForeignKey("models.id"), nullable=False)
+    model_id = Column(String, nullable=False)  # Changed from UUID to String to support frontend model ids
     
     # Tests being run
     test_ids = Column(ARRAY(String), nullable=False)

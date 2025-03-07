@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, ConfigDict, field_validator
 from enum import Enum
 
 
@@ -28,30 +28,47 @@ class NLPModelType(str, Enum):
     SENTENCE_SIMILARITY = "Sentence Similarity"
 
 
+class ModelProvider(str, Enum):
+    """Enum of supported model providers."""
+    HUGGINGFACE = "huggingface"
+    CUSTOM = "custom"  # For generic API endpoints
+
+
 class ModelBase(BaseModel):
-    """Base schema for model data."""
+    """Base model schema."""
     name: str
     description: Optional[str] = None
-    modality: ModelModality
-    sub_type: str
-    
-    class Config:
-        use_enum_values = True
+    provider: str
+    target_id: Optional[str] = None
+    target_type: Optional[str] = None
+    target_category: Optional[str] = None
+    target_subtype: Optional[str] = None
+    target_parameters: Optional[Dict[str, Any]] = None
+
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class ModelCreate(ModelBase):
     """Schema for creating a new model."""
     endpoint_url: Optional[str] = None
     api_key: Optional[str] = None
-    default_parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    
-    @validator('sub_type')
-    def validate_sub_type(cls, v, values):
-        modality = values.get('modality')
-        if modality == ModelModality.NLP and v not in [t.value for t in NLPModelType]:
-            raise ValueError(f"Invalid NLP model sub_type: {v}")
-        # More validators for other modalities can be added here
+    provider_id: Optional[str] = None  # Changed from model_id to provider_id
+    target_id: str
+    target_type: str
+    target_category: str = "NLP"
+    target_subtype: str
+    target_parameters: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("target_subtype")
+    @classmethod
+    def validate_sub_type(cls, v: str) -> str:
+        """Validate the target subtype."""
+        valid_subtypes = ["Text Generation", "Question Answering", "Text Classification", "Summarization"]
+        if v not in valid_subtypes:
+            raise ValueError(f"Invalid target subtype. Must be one of: {', '.join(valid_subtypes)}")
         return v
+
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class ModelUpdate(BaseModel):
@@ -61,6 +78,8 @@ class ModelUpdate(BaseModel):
     endpoint_url: Optional[str] = None
     default_parameters: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class ModelResponse(ModelBase):
@@ -72,14 +91,15 @@ class ModelResponse(ModelBase):
     updated_at: datetime
     is_active: bool
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 class ModelList(BaseModel):
     """Schema for listing multiple models."""
     models: List[ModelResponse]
     count: int
+
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
 
 # New schemas for modalities endpoint

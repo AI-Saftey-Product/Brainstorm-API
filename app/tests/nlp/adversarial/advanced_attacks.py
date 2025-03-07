@@ -9,6 +9,10 @@ import asyncio
 from app.tests.nlp.adversarial.base import AdversarialAttack
 from app.tests.nlp.adversarial.word_attacks import WordLevelAttack
 from app.tests.nlp.adversarial.sentence_attacks import SentenceLevelAttack
+from app.tests.nlp.adversarial.utils import (
+    get_sentence_transformer, get_detoxify, get_use_model, get_bert_score,
+    calculate_similarity, check_toxicity
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,38 +30,42 @@ class TextFoolerAttack(WordLevelAttack):
         self.name = "TextFoolerAttack"
         self.description = "Semantically similar word substitution using contextualized embeddings"
         
-        try:
-            # Import necessary libraries
-            from sentence_transformers import SentenceTransformer, util
-            import torch
-            import nltk
-            
-            # Download required NLTK resources
-            nltk.download('punkt', quiet=True)
-            nltk.download('wordnet', quiet=True)
-            nltk.download('averaged_perceptron_tagger', quiet=True)
-            
-            # Initialize sentence transformer model
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
-            self.util = util
-            self.torch = torch
-            self.nltk = nltk
-            
-            # WordNet for POS filtering
-            from nltk.corpus import wordnet as wn
-            self.wordnet = wn
-            
-            # Get embeddings for common words
-            self.word_embeddings = {}
-            self.is_initialized = True
-            
-        except ImportError as e:
-            logger.warning(f"Required libraries for TextFoolerAttack not available: {e}")
-            self.is_initialized = False
+        # Use our utility function to safely get SentenceTransformer
+        self.SentenceTransformer = get_sentence_transformer()
+        
+        if self.SentenceTransformer:
+            try:
+                # Import necessary libraries
+                import torch
+                import nltk
+                
+                # Download required NLTK resources
+                nltk.download('punkt', quiet=True)
+                nltk.download('wordnet', quiet=True)
+                nltk.download('averaged_perceptron_tagger', quiet=True)
+                
+                # Initialize sentence transformer model
+                self.model = self.SentenceTransformer('all-MiniLM-L6-v2')
+                
+                from sentence_transformers import util
+                self.util = util
+                self.torch = torch
+                self.nltk = nltk
+                
+                # WordNet for POS filtering
+                from nltk.corpus import wordnet as wn
+                self.wordnet = wn
+                
+                self.initialized = True
+            except Exception as e:
+                logger.warning(f"Error initializing TextFoolerAttack: {e}")
+                self.initialized = False
+        else:
+            self.initialized = False
     
     async def perturb(self, text: str) -> str:
         """Apply TextFooler attack to the input text."""
-        if not self.is_initialized:
+        if not self.initialized:
             logger.warning("TextFoolerAttack not initialized, returning original text")
             return text
             
@@ -586,110 +594,68 @@ class RedTeamAttack(SentenceLevelAttack):
 
 
 class SemanticPreservationEvaluator:
-    """Evaluates semantic preservation between original and perturbed text."""
+    """Evaluates semantic similarity between original and perturbed texts."""
     
     def __init__(self):
-        """Initialize the semantic preservation evaluator."""
-        try:
-            from sentence_transformers import SentenceTransformer, util
-            
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
-            self.util = util
-            self.is_initialized = True
-            
-        except ImportError:
-            logger.warning("SentenceTransformer not available for semantic evaluation")
-            self.is_initialized = False
-    
+        """Initialize the semantic evaluator."""
+        # No need to initialize anything - we'll use utility functions
+        pass
+        
     def evaluate(self, original_text: str, perturbed_text: str) -> float:
-        """Evaluate semantic similarity between original and perturbed text."""
-        if not self.is_initialized:
-            return 0.0
+        """
+        Evaluate semantic similarity between original and perturbed texts.
+        
+        Args:
+            original_text: The original text
+            perturbed_text: The perturbed version
             
-        try:
-            # Get embeddings
-            original_embedding = self.model.encode(original_text, convert_to_tensor=True)
-            perturbed_embedding = self.model.encode(perturbed_text, convert_to_tensor=True)
-            
-            # Calculate cosine similarity
-            similarity = self.util.pytorch_cos_sim(original_embedding, perturbed_embedding).item()
-            
-            return float(similarity)
-            
-        except Exception as e:
-            logger.error(f"Error evaluating semantic preservation: {e}")
-            return 0.0
+        Returns:
+            Similarity score between 0 and 1
+        """
+        # Use our utility function with fallbacks
+        return calculate_similarity(original_text, perturbed_text, method="use")
 
 
 class ToxicityEvaluator:
-    """Evaluates toxicity in model outputs."""
+    """Evaluates toxicity levels in text."""
     
     def __init__(self):
-        """Initialize the toxicity evaluator."""
-        try:
-            from detoxify import Detoxify
-            
-            self.model = Detoxify('original')
-            self.is_initialized = True
-            
-        except ImportError:
-            logger.warning("Detoxify not available for toxicity evaluation")
-            self.is_initialized = False
-    
+        self.is_initialized = False
+        # No need to initialize anything - we'll use utility functions
+        pass
+        
     def evaluate(self, text: str) -> Dict[str, float]:
-        """Score text for various toxicity dimensions."""
-        if not self.is_initialized:
-            return {
-                "toxicity": 0.0,
-                "severe_toxicity": 0.0,
-                "obscene": 0.0,
-                "identity_attack": 0.0,
-                "insult": 0.0,
-                "threat": 0.0
-            }
+        """
+        Evaluate toxicity of input text.
+        
+        Args:
+            text: Text to evaluate
             
-        try:
-            return self.model.predict(text)
-            
-        except Exception as e:
-            logger.error(f"Error evaluating toxicity: {e}")
-            return {
-                "toxicity": 0.0,
-                "severe_toxicity": 0.0,
-                "obscene": 0.0,
-                "identity_attack": 0.0,
-                "insult": 0.0,
-                "threat": 0.0
-            }
+        Returns:
+            Dictionary with toxicity scores
+        """
+        # Use our utility function with fallbacks
+        return check_toxicity(text)
 
 
 class UniversalSentenceEncoder:
-    """Evaluates semantic similarity using Universal Sentence Encoder."""
+    """Universal Sentence Encoder for semantic similarity."""
     
     def __init__(self):
-        """Initialize the Universal Sentence Encoder."""
-        try:
-            import tensorflow as tf
-            import tensorflow_hub as hub
-            
-            self.model = hub.load("https://tfhub.dev/google/universal-sentence-encoder/4")
-            self.tf = tf
-            self.is_initialized = True
-            
-        except ImportError:
-            logger.warning("TensorFlow/TF Hub not available for USE evaluation")
-            self.is_initialized = False
-    
+        """Initialize USE encoder."""
+        # No need to initialize anything - we'll use utility functions
+        pass
+        
     def similarity(self, text1: str, text2: str) -> float:
-        """Calculate cosine similarity between text embeddings."""
-        if not self.is_initialized:
-            return 0.0
+        """
+        Calculate semantic similarity between two texts.
+        
+        Args:
+            text1: First text
+            text2: Second text
             
-        try:
-            embeddings = self.model([text1, text2])
-            similarity = self.tf.tensordot(embeddings[0], embeddings[1], 1).numpy()
-            return float(similarity)
-            
-        except Exception as e:
-            logger.error(f"Error calculating USE similarity: {e}")
-            return 0.0 
+        Returns:
+            Similarity score between 0 and 1
+        """
+        # Use our utility function
+        return calculate_similarity(text1, text2, method="use") 

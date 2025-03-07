@@ -25,7 +25,12 @@ class HuggingFaceDataProvider(DataProvider):
         "text_classification": [
             ("imdb", "train", lambda x: {"text": x["text"], "expected": x["label"]}),
             ("sst2", "validation", lambda x: {"text": x["sentence"], "expected": x["label"]}),
-            ("emotion", "train", lambda x: {"text": x["text"], "expected": x["label"]})
+            ("emotion", "train", lambda x: {"text": x["text"], "expected": x["label"]}),
+            # Add more alternatives for text classification
+            ("ag_news", "test", lambda x: {"text": x["text"], "expected": x["label"]}),
+            ("yelp_review_full", "train", lambda x: {"text": x["text"], "expected": x["label"]}),
+            ("banking77", "train", lambda x: {"text": x["text"], "expected": x["label"]}),
+            ("silicone/emo", "train", lambda x: {"text": x["text"], "expected": x["emotion"]})
         ],
         "question_answering": [
             ("squad", "validation", lambda x: {
@@ -35,15 +40,61 @@ class HuggingFaceDataProvider(DataProvider):
             ("adversarial_qa", "validation", lambda x: {
                 "text": {"question": x["question"], "context": x["context"]}, 
                 "expected": x["answers"]["text"][0] if x["answers"]["text"] else ""
+            }),
+            # Add more alternatives for QA
+            ("quoref", "validation", lambda x: {
+                "text": {"question": x["question"], "context": x["context"]}, 
+                "expected": x["answers"]["text"][0] if x["answers"]["text"] else ""
+            }),
+            ("coqa", "train", lambda x: {
+                "text": {"question": x["questions"][0], "context": x["story"]}, 
+                "expected": x["answers"]["input_text"][0] if len(x["answers"]["input_text"]) > 0 else ""
+            }),
+            ("triviaqa", "train", lambda x: {
+                "text": {"question": x["question"], "context": " ".join(x["entity_pages"]["wiki_context"][:2]) if "entity_pages" in x and "wiki_context" in x["entity_pages"] else ""},
+                "expected": x["answer"]["value"] if "answer" in x else ""
             })
         ],
         "summarization": [
             ("cnn_dailymail", "validation", lambda x: {"text": x["article"], "expected": x["highlights"]}),
             ("samsum", "train", lambda x: {"text": x["dialogue"], "expected": x["summary"]}),
+            # Add more alternatives for summarization
+            ("xsum", "train", lambda x: {"text": x["document"], "expected": x["summary"]}),
+            ("multi_news", "train", lambda x: {"text": x["document"], "expected": x["summary"]}),
+            ("billsum", "train", lambda x: {"text": x["text"], "expected": x["summary"]}),
+            ("big_patent", "train", lambda x: {"text": x["description"], "expected": x["abstract"]})
         ],
         "generation": [
-            ("wikihow", "test", lambda x: {"text": x["text"], "expected": x["headline"]}),
-            ("eli5", "train", lambda x: {"text": x["question"], "expected": x["answers"]["text"][0] if x["answers"]["text"] else ""})
+            # Replaced defunct datasets with reliable alternatives
+            ("cnn_dailymail", "validation", lambda x: {"text": "Write an article about: " + x["highlights"], "expected": x["article"]}),
+            ("samsum", "train", lambda x: {"text": "Create a dialogue based on this summary: " + x["summary"], "expected": x["dialogue"]}),
+            ("squad", "validation", lambda x: {"text": "Generate a question about: " + x["context"], "expected": x["question"]}),
+            ("xsum", "train", lambda x: {"text": "Generate content based on: " + x["summary"], "expected": x["document"]}),
+            # Additional generation datasets
+            ("wikitext", "train", lambda x: {"text": "Continue this text: " + x["text"][:200], "expected": x["text"][200:400]}),
+            ("openai/webgpt_comparisons", "train", lambda x: {"text": x["question"], "expected": x["answer_0"] if random.random() > 0.5 else x["answer_1"]}),
+            ("common_gen", "train", lambda x: {"text": "Write a sentence using these concepts: " + ", ".join(x["concepts"]), "expected": x["target"]})
+        ]
+    }
+    
+    # Fallback examples for when datasets fail to load
+    FALLBACK_EXAMPLES = {
+        "text_classification": [
+            {"text": "This movie was fantastic and I enjoyed every minute of it.", "expected": 1},
+            {"text": "The product was terrible and broke after one use.", "expected": 0},
+            {"text": "I had a neutral experience, neither good nor bad.", "expected": 2}
+        ],
+        "question_answering": [
+            {"text": {"question": "What is the capital of France?", "context": "Paris is the capital and most populous city of France."}, "expected": "Paris"},
+            {"text": {"question": "Who invented the telephone?", "context": "Alexander Graham Bell is credited with inventing the first practical telephone."}, "expected": "Alexander Graham Bell"}
+        ],
+        "summarization": [
+            {"text": "The quick brown fox jumps over the lazy dog. The dog was too tired to react, while the fox continued on its journey through the forest. At the edge of the forest, the fox encountered a river that it needed to cross to reach its den.", "expected": "A fox jumped over a dog and needed to cross a river to get home."},
+            {"text": "Scientists have discovered a new species of deep-sea fish that can survive at extreme depths. The fish has specialized adaptations including pressure-resistant cells and unique vision capabilities that allow it to see in near-total darkness.", "expected": "New deep-sea fish species found with adaptations for extreme depths and darkness."}
+        ],
+        "generation": [
+            {"text": "Write a short story about space exploration.", "expected": "Astronauts discovered a new planet with traces of ancient civilization."},
+            {"text": "Describe the process of photosynthesis.", "expected": "Plants convert sunlight into energy through a chemical process in their cells."}
         ]
     }
     
@@ -53,46 +104,81 @@ class HuggingFaceDataProvider(DataProvider):
         self.loaded_datasets = {}  # Cache datasets after loading
     
     def get_examples(self, task_type: str, n_examples: int = 10) -> List[Dict[str, Any]]:
-        """Get examples for a specific task from HuggingFace datasets."""
-        if task_type not in self.TASK_TO_DATASET_MAPPING:
-            logger.warning(f"Task type {task_type} not mapped to datasets. Using default examples.")
-            return []
-            
-        examples = []
-        dataset_options = self.TASK_TO_DATASET_MAPPING[task_type]
+        """Get examples for a task type from HuggingFace datasets."""
+        # Normalize task type
+        task_type = task_type.lower().replace(" ", "_")
         
-        # Try datasets until we have enough examples
-        for dataset_name, split, mapper in dataset_options:
-            if len(examples) >= n_examples:
-                break
-                
+        if task_type not in self.TASK_TO_DATASET_MAPPING:
+            logger.warning(f"No dataset mapping for task type: {task_type}")
+            return self._get_fallback_examples(task_type, n_examples)
+        
+        # Try each dataset until we find one
+        datasets_tried = 0
+        for dataset_name, split, transform_fn in self.TASK_TO_DATASET_MAPPING[task_type]:
             try:
-                dataset_key = f"{dataset_name}_{split}"
-                if dataset_key not in self.loaded_datasets:
-                    logger.info(f"Loading dataset {dataset_name} ({split})")
-                    self.loaded_datasets[dataset_key] = load_dataset(
-                        dataset_name, split=split, cache_dir=self.cache_dir
-                    )
+                logger.info(f"Loading dataset {dataset_name} ({split})")
+                # Try with trust_remote_code=True to handle more complex datasets
+                # Use additional parameters to help with dataset loading
+                dataset = load_dataset(
+                    dataset_name, 
+                    split=split, 
+                    trust_remote_code=True, 
+                    use_auth_token=False,  # No token needed for public datasets
+                    streaming=False,  # We need random access
+                    num_proc=1  # Single process to avoid complex errors
+                )
+                datasets_tried += 1
                 
-                dataset = self.loaded_datasets[dataset_key]
-                
-                # Get random examples
-                indices = random.sample(range(len(dataset)), min(n_examples * 2, len(dataset)))
-                for idx in indices:
-                    if len(examples) >= n_examples:
-                        break
-                    try:
-                        item = dataset[idx]
-                        example = mapper(item)
-                        examples.append(example)
-                    except (KeyError, IndexError) as e:
-                        logger.warning(f"Error mapping example: {e}")
-                        continue
-                        
+                # Select random examples
+                if isinstance(dataset, Dataset) and len(dataset) > 0:
+                    # Ensure we don't request more examples than available
+                    n = min(n_examples, len(dataset))
+                    
+                    # Get random indices
+                    indices = random.sample(range(len(dataset)), n)
+                    
+                    # Transform examples to the expected format
+                    examples = []
+                    for idx in indices:
+                        try:
+                            example = transform_fn(dataset[idx])
+                            examples.append(example)
+                        except Exception as e:
+                            logger.warning(f"Error transforming example from {dataset_name}: {e}")
+                    
+                    if examples:
+                        logger.info(f"Successfully loaded {len(examples)} examples from {dataset_name}")
+                        return examples
             except Exception as e:
-                logger.warning(f"Failed to load dataset {dataset_name}: {e}")
-                continue
-                
+                logger.warning(f"Failed to load dataset {dataset_name}: {str(e)}")
+        
+        # If we've tried at least one dataset but all failed, use fallbacks
+        if datasets_tried > 0:
+            logger.warning(f"Failed to load any dataset for task type: {task_type}, using fallback examples")
+            return self._get_fallback_examples(task_type, n_examples)
+        else:
+            # This should not happen unless there's a bug in the dataset mapping
+            logger.error(f"No datasets were tried for task type: {task_type}")
+            return self._get_fallback_examples(task_type, n_examples)
+    
+    def _get_fallback_examples(self, task_type: str, n_examples: int = 10) -> List[Dict[str, Any]]:
+        """Get fallback examples when datasets cannot be loaded."""
+        if task_type not in self.FALLBACK_EXAMPLES:
+            logger.warning(f"No fallback examples for task type: {task_type}")
+            # Return some generic examples that might work for most tasks
+            return [
+                {"text": "This is a test example.", "expected": "Test response", "_is_fallback": True}
+            ]
+        
+        # Return the available fallback examples, limited to requested number
+        examples = self.FALLBACK_EXAMPLES[task_type]
+        
+        # Mark all examples as fallbacks
+        for example in examples:
+            example["_is_fallback"] = True
+            
+        if len(examples) > n_examples:
+            return random.sample(examples, n_examples)
         return examples
 
 class AdversarialGLUEProvider(DataProvider):
@@ -237,8 +323,8 @@ class AugmentedDataProvider(DataProvider):
                 model_path='roberta-base', action="substitute"
             )
             
-            # Sentence-level augmenters
-            self.back_translation_aug = nas.BackTranslationAug(
+            # Back translation augmenter (now in word module, not sentence)
+            self.back_translation_aug = naw.BackTranslationAug(
                 from_model_name='Helsinki-NLP/opus-mt-en-de',
                 to_model_name='Helsinki-NLP/opus-mt-de-en'
             )
@@ -317,14 +403,28 @@ class DataProviderFactory:
             "toxicity": ToxicityDataProvider
         }
         
+        # Remove parameters that aren't supported by the provider constructors
+        kwargs_copy = kwargs.copy()
+        if 'use_augmentation' in kwargs_copy:
+            # This parameter is only used by create_augmented, not by the actual providers
+            kwargs_copy.pop('use_augmentation')
+            
         if provider_type not in providers:
             logger.warning(f"Unknown provider type: {provider_type}. Using HuggingFace provider.")
-            return HuggingFaceDataProvider(**kwargs)
+            return HuggingFaceDataProvider(**kwargs_copy)
             
-        return providers[provider_type](**kwargs)
+        return providers[provider_type](**kwargs_copy)
     
     @staticmethod
     def create_augmented(base_provider_type: str, **kwargs) -> DataProvider:
         """Create an augmented data provider."""
+        use_augmentation = kwargs.get('use_augmentation', False)
+        
+        # If augmentation is disabled, just return the base provider
+        if not use_augmentation:
+            base_provider = DataProviderFactory.create(base_provider_type, **kwargs)
+            return base_provider
+            
+        # Otherwise, create the base provider and wrap it with augmentation
         base_provider = DataProviderFactory.create(base_provider_type, **kwargs)
         return AugmentedDataProvider(base_provider) 

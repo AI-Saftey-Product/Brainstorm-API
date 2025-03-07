@@ -99,65 +99,78 @@ async def get_model_specific_tests(
         raise HTTPException(status_code=500, detail=f"Error retrieving model-specific tests: {str(e)}")
 
 
-@router.post("/runs", response_model=TestRunResponse, status_code=201)
+@router.post("/run", status_code=201)
 async def create_test_run(
-    test_run_data: TestRunCreate,
-    db: Session = Depends(get_db)
+    test_run_data: TestRunCreate
 ):
     """
     Create a new test run.
     """
     try:
-        db_test_run = await test_service.create_test_run(db, test_run_data)
-        return db_test_run
+        test_run = await test_service.create_test_run(test_run_data)
+        
+        # Format the response with the expected structure for the frontend
+        return {
+            "task_id": str(test_run["id"]),
+            "status": test_run["status"],
+            "message": "Test run created successfully",
+            "test_run": test_run
+        }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating test run: {str(e)}")
 
 
-@router.get("/runs", response_model=TestRunList)
+@router.get("/runs")
 async def get_test_runs(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
-    db: Session = Depends(get_db)
+    limit: int = Query(100, ge=1, le=100)
 ):
     """
     Get a list of test runs.
     """
-    test_runs = await test_service.get_test_runs(db, skip, limit)
+    test_runs = await test_service.get_test_runs(skip, limit)
     return {"test_runs": test_runs, "count": len(test_runs)}
 
 
-@router.get("/runs/{test_run_id}", response_model=TestRunResponse)
+@router.get("/runs/{test_run_id}")
 async def get_test_run(
-    test_run_id: UUID,
-    db: Session = Depends(get_db)
+    test_run_id: UUID
 ):
     """
     Get a test run by ID.
     """
-    db_test_run = await test_service.get_test_run(db, test_run_id)
-    if not db_test_run:
+    test_run = await test_service.get_test_run(test_run_id)
+    if not test_run:
         raise HTTPException(status_code=404, detail=f"Test run with ID {test_run_id} not found")
-    return db_test_run
+    return test_run
 
 
-@router.get("/runs/{test_run_id}/results", response_model=TestResultList)
+@router.get("/runs/{test_run_id}/results")
 async def get_test_results(
-    test_run_id: UUID,
-    db: Session = Depends(get_db)
+    test_run_id: UUID
 ):
     """
     Get test results for a test run.
     """
     # First check if the test run exists
-    db_test_run = await test_service.get_test_run(db, test_run_id)
-    if not db_test_run:
+    test_run = await test_service.get_test_run(test_run_id)
+    if not test_run:
         raise HTTPException(status_code=404, detail=f"Test run with ID {test_run_id} not found")
     
-    results = await test_service.get_test_results(db, test_run_id)
+    results = await test_service.get_test_results(test_run_id)
     return {"results": results, "count": len(results)}
+
+
+@router.get("/results/{test_run_id}")
+async def get_test_results_alias(
+    test_run_id: UUID
+):
+    """
+    Get test results for a test run (alias for frontend compatibility).
+    """
+    return await get_test_results(test_run_id)
 
 
 @router.get("/categories")
@@ -212,4 +225,55 @@ async def get_all_tests(
             "count": len(tests)
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving tests: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error retrieving tests: {str(e)}")
+
+
+@router.get("/status/{test_run_id}")
+async def get_test_status(
+    test_run_id: UUID
+):
+    """
+    Simple placeholder for test status that returns a minimal response.
+    """
+    # Return a minimal static response without doing any real work
+    return {
+        "task_id": str(test_run_id),
+        "status": "completed",
+        "progress": 100,
+        "message": "Status check disabled",
+        "results_count": 0,
+        "initialization_complete": True
+    }
+
+
+@router.get("/debug/runs")
+async def debug_get_all_test_runs():
+    """
+    Debug endpoint to get all test runs in memory.
+    This helps diagnose issues with test execution.
+    """
+    from app.services.test_service import test_runs
+    
+    # Create a safe copy of test runs to avoid serialization issues
+    safe_runs = {}
+    for run_id, run in test_runs.items():
+        try:
+            safe_run = {
+                "id": str(run.get("id", "")),
+                "model_id": str(run.get("model_id", "")),
+                "test_ids": run.get("test_ids", []),
+                "status": run.get("status", "unknown"),
+                "start_time": str(run.get("start_time", "")),
+                "end_time": str(run.get("end_time", "")),
+                "created_at": str(run.get("created_at", "")),
+                "updated_at": str(run.get("updated_at", "")),
+                "summary_results": run.get("summary_results", {})
+            }
+            safe_runs[str(run_id)] = safe_run
+        except Exception as e:
+            safe_runs[str(run_id)] = {"error": f"Failed to serialize: {str(e)}"}
+    
+    return {
+        "count": len(safe_runs),
+        "test_runs": safe_runs
+    } 

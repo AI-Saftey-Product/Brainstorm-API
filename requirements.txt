@@ -15,6 +15,7 @@ psycopg2-binary==2.9.9
 # For model interactions
 openai==1.2.0
 langchain==0.0.312
+huggingface_hub==0.17.3  # Known stable version with InferenceClient
 # Security
 python-jose==3.3.0
 passlib==1.7.4
@@ -36,4 +37,7 @@ nlpaug>=1.1.11
 # Optional: Advanced NLP libraries (uncomment if needed)
 # spacy>=3.6.0
 # stanza>=1.5.0
-# allennlp>=2.10.0 
+# allennlp>=2.10.0
+
+# Added huggingface_hub
+# huggingface_hub>=0.19.0 

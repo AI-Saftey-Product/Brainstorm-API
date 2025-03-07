@@ -1,10 +1,14 @@
 """Main application module."""
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Dict, Set
+import json
+from uuid import UUID
 
 from app.api.api import api_router
 from app.core.config import settings
+from app.core.websocket import manager as websocket_manager
 
 
 # Configure logging
@@ -48,3 +52,14 @@ async def root():
 async def health():
     """Health check endpoint."""
     return {"status": "ok"} 
+
+@app.websocket("/ws/tests/{test_run_id}")
+async def websocket_endpoint(websocket: WebSocket, test_run_id: str):
+    """WebSocket endpoint for test result notifications."""
+    await websocket_manager.connect(websocket, test_run_id)
+    try:
+        while True:
+            # Keep the connection alive, waiting for backend notifications
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        websocket_manager.disconnect(websocket, test_run_id) 
