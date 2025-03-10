@@ -7,7 +7,7 @@ import asyncio
 from app.tests.nlp.data_providers import DataProviderFactory, DataProvider
 from app.tests.nlp.adversarial.base import AdversarialAttack, RobustnessTester
 from app.tests.nlp.adversarial.character_attacks import (
-    CharacterLevelAttack, TypoAttack, HomoglyphAttack, PunctuationAttack
+    CharacterLevelAttack, TypoAttack, HomoglyphAttack, PunctuationAttack, UnicodeAttack
 )
 from app.tests.nlp.adversarial.word_attacks import (
     WordLevelAttack, SynonymAttack, WordScrambleAttack, WordInsertDeleteAttack
@@ -59,7 +59,8 @@ class OptimizedRobustnessTest:
             attacks.extend([
                 TypoAttack(attack_params),
                 HomoglyphAttack(attack_params),
-                PunctuationAttack(attack_params)
+                PunctuationAttack(attack_params),
+                UnicodeAttack(attack_params)
             ])
         
         # Word-level attacks
