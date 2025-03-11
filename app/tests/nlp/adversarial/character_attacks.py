@@ -316,4 +316,141 @@ class PunctuationAttack(CharacterLevelAttack):
         return text[:punct_idx] + text[punct_idx+1:]
     
     def get_description(self) -> str:
-        return "Modifies text by adding or removing spaces and punctuation" 
+        return "Modifies text by adding or removing spaces and punctuation"
+
+
+class UnicodeAttack(CharacterLevelAttack):
+    """Attack that uses various Unicode manipulation techniques including invisible characters,
+    combining marks, extended confusables, and bidirectional text markers."""
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        super().__init__(config)
+        self.name = "UnicodeAttack"
+        
+        # Different categories of Unicode manipulations
+        self.invisible_chars = [
+            '\u200B',  # Zero-width space
+            '\u200C',  # Zero-width non-joiner
+            '\u200D',  # Zero-width joiner
+            '\u2060',  # Word joiner
+            '\uFEFF'   # Zero-width non-breaking space
+        ]
+        
+        self.combining_marks = [
+            '\u0300',  # Combining grave accent
+            '\u0301',  # Combining acute accent
+            '\u0302',  # Combining circumflex
+            '\u0308',  # Combining diaeresis
+            '\u0327',  # Combining cedilla
+            '\u0334',  # Combining tilde overlay
+            '\u0336'   # Combining strike
+        ]
+        
+        # Extended confusables beyond the current homoglyphs
+        self.confusables = {
+            'a': ['ą', 'ă', 'ã', 'ā', 'ȧ'],
+            'e': ['ę', 'ė', 'ē', 'ě', 'è'],
+            'i': ['ī', 'ĭ', 'ĩ', 'į', 'ì'],
+            'o': ['ō', 'ŏ', 'õ', 'ő', 'ò'],
+            'u': ['ū', 'ŭ', 'ũ', 'ų', 'ù'],
+            'n': ['ń', 'ņ', 'ñ', 'ň', 'ǹ'],
+            'y': ['ý', 'ỳ', 'ŷ', 'ÿ', 'ỹ'],
+            's': ['ś', 'ş', 'š', 'ș', 'ṣ'],
+            'l': ['ĺ', 'ļ', 'ľ', 'ł', 'ḷ'],
+            'z': ['ź', 'ż', 'ž', 'ẑ', 'ẓ']
+        }
+        
+        self.rtl_markers = [
+            '\u202E',  # Right-to-left override
+            '\u202D',  # Left-to-right override
+            '\u202B',  # Right-to-left embedding
+            '\u202A'   # Left-to-right embedding
+        ]
+        
+        # Update config with specific settings
+        self.default_config.update({
+            "invisible_char_prob": 0.3,  # Probability of adding invisible characters
+            "combining_mark_prob": 0.3,  # Probability of adding combining marks
+            "confusable_prob": 0.4,      # Probability of using confusables
+            "rtl_prob": 0.1              # Probability of adding RTL markers
+        })
+        
+        if config:
+            self.default_config.update(config)
+    
+    def _perturb_word(self, word: str) -> str:
+        """Apply Unicode-based perturbation to a word."""
+        if len(word) <= 1:
+            return word
+            
+        # Choose attack strategy based on probabilities
+        strategy = random.choices(
+            [
+                self._add_invisible_chars,
+                self._add_combining_marks,
+                self._replace_with_confusables,
+                self._add_rtl_markers
+            ],
+            weights=[
+                self.config["invisible_char_prob"],
+                self.config["combining_mark_prob"],
+                self.config["confusable_prob"],
+                self.config["rtl_prob"]
+            ]
+        )[0]
+        
+        return strategy(word)
+    
+    def _add_invisible_chars(self, word: str) -> str:
+        """Insert invisible characters between letters."""
+        if len(word) <= 1:
+            return word
+        
+        # Insert 1-3 invisible characters at random positions
+        num_inserts = random.randint(1, min(3, len(word) - 1))
+        positions = random.sample(range(1, len(word)), num_inserts)
+        
+        result = list(word)
+        for pos in sorted(positions, reverse=True):
+            char = random.choice(self.invisible_chars)
+            result.insert(pos, char)
+        
+        return ''.join(result)
+    
+    def _add_combining_marks(self, word: str) -> str:
+        """Add combining diacritical marks to letters."""
+        result = []
+        for char in word:
+            result.append(char)
+            if random.random() < 0.3:  # 30% chance per character
+                num_marks = random.randint(1, 2)
+                marks = random.sample(self.combining_marks, num_marks)
+                result.extend(marks)
+        return ''.join(result)
+    
+    def _replace_with_confusables(self, word: str) -> str:
+        """Replace characters with confusable Unicode alternatives."""
+        result = []
+        for char in word:
+            if char.lower() in self.confusables and random.random() < 0.4:
+                confusable = random.choice(self.confusables[char.lower()])
+                # Preserve case if possible
+                if char.isupper():
+                    confusable = confusable.upper()
+                result.append(confusable)
+            else:
+                result.append(char)
+        return ''.join(result)
+    
+    def _add_rtl_markers(self, word: str) -> str:
+        """Add RTL/LTR markers to create bidirectional text."""
+        if len(word) <= 2:
+            return word
+            
+        # Add RTL marker in the middle of the word
+        mid = len(word) // 2
+        marker = random.choice(self.rtl_markers)
+        return word[:mid] + marker + word[mid:]
+    
+    def get_description(self) -> str:
+        return "Manipulates text using various Unicode techniques including invisible characters, combining marks, confusables, and bidirectional markers" 
