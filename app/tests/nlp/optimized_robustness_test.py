@@ -16,7 +16,11 @@ from app.tests.nlp.adversarial.sentence_attacks import (
     SentenceLevelAttack, DistractorSentenceAttack, SentenceShuffleAttack, ParaphraseAttack
 )
 from app.tests.nlp.adversarial.advanced_attacks import (
-    TextFoolerAttack, BERTAttack, RedTeamAttack
+    TextFoolerAttack, BERTAttack, RedTeamAttack, JailbreakAttack
+)
+from app.tests.nlp.adversarial.prompt_injection_attacks import (
+    TokenSmugglingAttack, ChainOfThoughtInjectionAttack, SystemPromptLeakageAttack,
+    MultiModalPromptInjectionAttack, ContextOverflowAttack, RecursivePromptInjectionAttack
 )
 from app.tests.nlp.optimizations import (
     ModelRegistry, OutputCache, ResourceManager, PerformanceMonitor
@@ -78,7 +82,20 @@ class OptimizedRobustnessTest:
                 DistractorSentenceAttack(attack_params),
                 SentenceShuffleAttack(attack_params),
                 ParaphraseAttack(attack_params),
-                RedTeamAttack(attack_params)
+                RedTeamAttack(attack_params),
+                JailbreakAttack(attack_params)
+            ])
+        
+        # Prompt injection attacks (if enabled)
+        if self.config.get("use_prompt_injection_attacks", False):
+            logger.info("Initializing prompt injection attacks")
+            attacks.extend([
+                TokenSmugglingAttack(attack_params),
+                ChainOfThoughtInjectionAttack(attack_params),
+                SystemPromptLeakageAttack(attack_params),
+                MultiModalPromptInjectionAttack(attack_params),
+                ContextOverflowAttack(attack_params),
+                RecursivePromptInjectionAttack(attack_params)
             ])
         
         return attacks
@@ -428,7 +445,8 @@ class OptimizedRobustnessTest:
             "word_level": {"severity": 0.0, "attacks": []},
             "sentence_level": {"severity": 0.0, "attacks": []},
             "jailbreak": {"severity": 0.0, "attacks": []},
-            "red_team": {"severity": 0.0, "attacks": []}
+            "red_team": {"severity": 0.0, "attacks": []},
+            "prompt_injection": {"severity": 0.0, "attacks": []}
         }
         
         # Categorize attacks and calculate severity
@@ -449,6 +467,9 @@ class OptimizedRobustnessTest:
                     category = "jailbreak"
                 elif "RedTeam" in attack_name:
                     category = "red_team"
+                elif any(x in attack_name for x in ["TokenSmuggling", "ChainOfThought", "SystemPromptLeakage", 
+                                                  "MultiModal", "ContextOverflow", "RecursivePrompt"]):
+                    category = "prompt_injection"
                 
                 if category:
                     vulnerability_profile[category]["attacks"].append({

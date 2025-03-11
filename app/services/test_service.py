@@ -17,6 +17,7 @@ from app.model_adapters import get_model_adapter
 from app.tests.nlp.data_providers import DataProviderFactory, HuggingFaceDataProvider
 # Import the optimized implementation
 from app.tests.nlp.optimized_robustness_test import OptimizedRobustnessTest
+from app.tests.nlp.prompt_injection_test import PromptInjectionTest
 
 # Import the WebSocket manager from the dedicated module
 from app.core.websocket import manager as websocket_manager
@@ -526,6 +527,15 @@ async def run_tests(test_run_id: UUID) -> None:
                         model_params,
                         test_specific_params
                     )
+                elif test_id == "nlp_prompt_injection_test":
+                    result = await run_prompt_injection_test(
+                        adapter,
+                        test_id,
+                        test_info["category"],
+                        test_info["name"],
+                        model_params,
+                        test_specific_params
+                    )
                 else:
                     logger.warning(f"Test {test_id} not implemented, skipping")
                     
@@ -758,17 +768,6 @@ async def run_adversarial_robustness_test(
 ) -> Dict[str, Any]:
     """
     Run the adversarial robustness test for an NLP model using optimized implementation.
-    
-    Args:
-        model_adapter: Initialized model adapter
-        test_id: Test ID
-        test_category: Test category
-        test_name: Test name
-        model_parameters: Model-specific parameters
-        test_parameters: Test-specific parameters
-        
-    Returns:
-        Dictionary with test results and performance metrics
     """
     try:
         # Configure the test with optimization parameters
@@ -808,8 +807,8 @@ async def run_adversarial_robustness_test(
         if not api_available:
             logger.error(f"Cannot connect to model API for {test_id}")
             return {
-                "id": str(uuid4()),  # Convert UUID to string
-                "test_run_id": None,  # Will be set by caller
+                "id": str(uuid4()),
+                "test_run_id": None,
                 "test_id": test_id,
                 "test_category": test_category,
                 "test_name": test_name,
@@ -830,9 +829,9 @@ async def run_adversarial_robustness_test(
         optimization_stats = test.get_optimization_stats()
         
         # Create result with consistent structure
-        return {
-            "id": str(uuid4()),  # Convert UUID to string
-            "test_run_id": None,  # Will be set by caller
+        test_result = {
+            "id": str(uuid4()),
+            "test_run_id": None,
             "test_id": test_id,
             "test_category": test_category,
             "test_name": test_name,
@@ -842,7 +841,7 @@ async def run_adversarial_robustness_test(
                 "optimization_stats": optimization_stats,
                 "test_results": results
             },
-            "issues_found": 0,  # Will be calculated based on results
+            "issues_found": 0,
             "analysis": {
                 "results": results,
                 "optimization_metrics": optimization_stats
@@ -850,11 +849,24 @@ async def run_adversarial_robustness_test(
             "created_at": datetime.utcnow()
         }
         
+        # Log the full ART test result
+        logger.info(f"\n{'='*80}")
+        logger.info(f"ART Test Result:")
+        logger.info(f"Test ID: {test_id}")
+        logger.info(f"Status: {test_result['status']}")
+        logger.info(f"Score: {test_result['score']}")
+        logger.info(f"Issues Found: {test_result['issues_found']}")
+        logger.info(f"Metrics: {json.dumps(test_result['metrics'], indent=2)}")
+        logger.info(f"Analysis: {json.dumps(test_result['analysis'], indent=2)}")
+        logger.info(f"{'='*80}\n")
+        
+        return test_result
+        
     except Exception as e:
         logger.error(f"Error running adversarial robustness test: {str(e)}")
         return {
-            "id": str(uuid4()),  # Convert UUID to string
-            "test_run_id": None,  # Will be set by caller
+            "id": str(uuid4()),
+            "test_run_id": None,
             "test_id": test_id,
             "test_category": test_category,
             "test_name": test_name,
@@ -997,3 +1009,112 @@ async def run_bias_test(
             },
             "created_at": datetime.utcnow()
         } 
+
+async def run_prompt_injection_test(
+    adapter: BaseModelAdapter,
+    test_id: str,
+    test_category: str,
+    test_name: str,
+    model_parameters: Dict[str, Any],
+    test_parameters: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Run the prompt injection test for the given parameters."""
+    logger.info(f"Running prompt injection test with {len(test_parameters)} parameters")
+    
+    # Create and configure the test
+    test = PromptInjectionTest(test_parameters)
+    
+    # Run the test
+    results = await test.run_test(adapter, model_parameters)
+    
+    # Calculate the overall score as percentage
+    vulnerability_score = results.get("vulnerability_score", 0.0)
+    robustness_score = 100 - int(vulnerability_score * 100)
+    
+    # Format the test results according to the schema
+    formatted_results = []
+    for result in results.get("results", []):
+        formatted_result = {
+            "input": result.get("input", ""),
+            "output": result.get("original_output", ""),
+            "expected": None,  # No expected output for prompt injection tests
+            "metrics": {
+                "attack_success": result.get("attack_results", []),
+                "performance": result.get("performance_metrics", {})
+            }
+        }
+        formatted_results.append(formatted_result)
+    
+    # Create result with consistent structure
+    test_result = {
+        "id": str(uuid4()),
+        "test_run_id": None,
+        "test_id": test_id,
+        "test_category": test_category,
+        "test_name": test_name,
+        "status": "success" if results.get("status") == "success" else "error",
+        "score": robustness_score,
+        "metrics": {
+            "optimization_stats": {
+                "performance_stats": {
+                    "total_time": results.get("performance_metrics", {}).get("total_time", 0),
+                    "operation_count": results.get("performance_metrics", {}).get("operation_count", 0)
+                }
+            },
+            "test_results": {
+                "performance_metrics": {
+                    "total_time": results.get("performance_metrics", {}).get("total_time", 0),
+                    "n_examples": results.get("n_examples", 0)
+                },
+                "results": formatted_results
+            }
+        },
+        "issues_found": 0,
+        "analysis": {
+            "vulnerability_profile": results.get("vulnerability_profile", {}),
+            "attack_efficiency": results.get("attack_efficiency", {}),
+            "performance_metrics": results.get("performance_metrics", {}),
+            "results": results.get("results", [])
+        },
+        "created_at": datetime.utcnow()
+    }
+    
+    # Count the number of successful attacks as issues
+    for attack_type, success_rate in results.get("attack_success_rates", {}).items():
+        if success_rate > 0:
+            test_result["issues_found"] += 1
+    
+    # If no issues were found but we have successful attacks, count at least one issue
+    if test_result["issues_found"] == 0 and vulnerability_score > 0:
+        test_result["issues_found"] = 1
+    
+    # Log the full prompt injection test result in a more concise format
+    logger.info(f"\n{'='*80}")
+    logger.info(f"Prompt Injection Test Result:")
+    logger.info(f"Test ID: {test_id}")
+    logger.info(f"Status: {test_result['status']}")
+    logger.info(f"Score: {test_result['score']}")
+    logger.info(f"Issues Found: {test_result['issues_found']}")
+    
+    # Log metrics summary
+    metrics = test_result['metrics']
+    logger.info("\nMetrics Summary:")
+    logger.info(f"Total Time: {metrics['optimization_stats']['performance_stats']['total_time']:.2f}s")
+    logger.info(f"Operation Count: {metrics['optimization_stats']['performance_stats']['operation_count']}")
+    logger.info(f"Number of Examples: {metrics['test_results']['performance_metrics']['n_examples']}")
+    
+    # Log vulnerability profile summary
+    vulnerability_profile = test_result['analysis']['vulnerability_profile']
+    logger.info("\nVulnerability Profile Summary:")
+    for attack_type, profile in vulnerability_profile.items():
+        logger.info(f"{attack_type}: Severity = {profile['severity']:.2f}, Successful Attacks = {sum(1 for a in profile['attacks'] if a['success'])}")
+    
+    # Log attack efficiency summary
+    attack_efficiency = test_result['analysis']['attack_efficiency']
+    logger.info("\nAttack Efficiency Summary:")
+    for attack_name, efficiency in attack_efficiency.items():
+        logger.info(f"{attack_name}: Success Rate = {efficiency['success_rate']:.2f}, Efficiency Score = {efficiency['efficiency_score']:.2f}")
+    
+    logger.info(f"{'='*80}\n")
+    
+    return test_result 
