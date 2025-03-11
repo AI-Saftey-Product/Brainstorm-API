@@ -17,6 +17,7 @@ from app.model_adapters import get_model_adapter
 from app.tests.nlp.data_providers import DataProviderFactory, HuggingFaceDataProvider
 # Import the optimized implementation
 from app.tests.nlp.optimized_robustness_test import OptimizedRobustnessTest
+from app.tests.nlp.prompt_injection_test import PromptInjectionTest
 
 # Import the WebSocket manager from the dedicated module
 from app.core.websocket import manager as websocket_manager
@@ -42,6 +43,16 @@ def cleanup_finished_tasks():
     active_test_tasks -= done_tasks
     if done_tasks:
         logger.info(f"Cleaned up {len(done_tasks)} finished test tasks. {len(active_test_tasks)} still active.")
+
+def serialize_datetime(obj: Any) -> Any:
+    """Convert datetime objects to ISO format strings for JSON serialization."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {key: serialize_datetime(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [serialize_datetime(item) for item in obj]
+    return obj
 
 async def create_test_run(test_run_data) -> Dict[str, Any]:
     """
@@ -137,7 +148,7 @@ async def get_test_runs(skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]
     return sorted_runs[skip:skip+limit]
 
 
-async def get_test_results(test_run_id: UUID) -> List[Dict[str, Any]]:
+async def get_test_results(test_run_id: UUID) -> Dict[str, Any]:
     """
     Get test results for a test run from in-memory storage.
     
@@ -145,9 +156,82 @@ async def get_test_results(test_run_id: UUID) -> List[Dict[str, Any]]:
         test_run_id: Test run ID
         
     Returns:
-        List of test results
+        Dictionary containing results array and compliance scores
     """
-    return [r for r in test_results.values() if r.get("test_run_id") == test_run_id]
+    # Convert UUID to string for comparison since we store test_run_ids as strings
+    test_run_id_str = str(test_run_id)
+    logger.debug(f"Getting test results for test_run_id: {test_run_id_str}")
+    logger.debug(f"Total test results in storage: {len(test_results)}")
+    
+    # Get all results for this test run
+    raw_results = [r for r in test_results.values() if r.get("test_run_id") == test_run_id_str]
+    logger.debug(f"Found {len(raw_results)} results for test_run_id {test_run_id_str}")
+    
+    # Format results according to frontend schema
+    formatted_results = []
+    compliance_scores = {}
+    
+    for result in raw_results:
+        # Format individual test result
+        formatted_result = {
+            "test_id": result["test_id"],
+            "test_name": result["test_name"],
+            "test_category": result["test_category"],
+            "status": result["status"],
+            "score": result["score"],
+            "issues_found": result["issues_found"],
+            "created_at": result["created_at"].isoformat() if isinstance(result["created_at"], datetime) else result["created_at"],
+            "analysis": result.get("analysis", {})
+        }
+        
+        # Format metrics if present
+        if "metrics" in result:
+            formatted_result["metrics"] = {}
+            
+            # Format optimization stats if present
+            if "optimization_stats" in result["metrics"]:
+                formatted_result["metrics"]["optimization_stats"] = {
+                    "performance_stats": {
+                        "total_time": result["metrics"]["optimization_stats"].get("total_time", 0),
+                        "operation_count": result["metrics"]["optimization_stats"].get("operation_count", 0)
+                    }
+                }
+            
+            # Format test results if present
+            if "test_results" in result["metrics"]:
+                formatted_result["metrics"]["test_results"] = {
+                    "performance_metrics": {
+                        "total_time": result["metrics"]["test_results"].get("total_time", 0),
+                        "n_examples": result["metrics"]["test_results"].get("n_examples", 0)
+                    },
+                    "results": [
+                        {
+                            "input": item.get("input", ""),
+                            "output": item.get("output", ""),
+                            "expected": item.get("expected", "")
+                        }
+                        for item in result["metrics"]["test_results"].get("results", [])
+                    ]
+                }
+        
+        formatted_results.append(formatted_result)
+        
+        # Update compliance scores
+        category = result["test_category"]
+        if category not in compliance_scores:
+            compliance_scores[category] = {"total": 0, "passed": 0}
+        compliance_scores[category]["total"] += 1
+        if result["status"] == "success":
+            compliance_scores[category]["passed"] += 1
+    
+    # Log the formatted results for debugging
+    logger.debug(f"Formatted results: {formatted_results}")
+    logger.debug(f"Compliance scores: {compliance_scores}")
+    
+    return {
+        "results": formatted_results,
+        "compliance_scores": compliance_scores
+    }
 
 
 async def run_tests(test_run_id: UUID) -> None:
@@ -188,13 +272,13 @@ async def run_tests(test_run_id: UUID) -> None:
         logger.debug(f"Sending initial WebSocket notification for test run {test_run_id}")
         await websocket_manager.send_notification(
             str(test_run_id), 
-            {
+            serialize_datetime({
                 "type": "test_status_update",
                 "status": "running",
                 "test_run_id": str(test_run_id),
                 "message": "Test run started",
                 "summary": test_run["summary_results"]
-            }
+            })
         )
     except Exception as e:
         logger.error(f"Failed to send WebSocket notification: {str(e)}", exc_info=True)
@@ -314,13 +398,13 @@ async def run_tests(test_run_id: UUID) -> None:
             logger.debug("Sending initialization complete notification")
             await websocket_manager.send_notification(
                 str(test_run_id),
-                {
+                serialize_datetime({
                     "type": "test_status_update",
                     "status": "running",
                     "test_run_id": str(test_run_id),
                     "message": "Model initialization complete",
                     "summary": test_run["summary_results"]
-                }
+                })
             )
         except Exception as e:
             logger.error(f"Failed to send initialization notification: {str(e)}", exc_info=True)
@@ -355,13 +439,13 @@ async def run_tests(test_run_id: UUID) -> None:
         # Notify clients about test counts
         await websocket_manager.send_notification(
             str(test_run_id),
-            {
+            serialize_datetime({
                 "type": "test_status_update",
                 "status": "running",
                 "test_run_id": str(test_run_id),
                 "message": f"Starting tests: {total_tests} tests to run",
                 "summary": test_run["summary_results"]
-            }
+            })
         )
         
         # Process each test
@@ -376,8 +460,8 @@ async def run_tests(test_run_id: UUID) -> None:
                     
                     # Create error result
                     error_result = {
-                        "id": uuid4(),
-                        "test_run_id": test_run_id,
+                        "id": str(uuid4()),  # Convert UUID to string
+                        "test_run_id": str(test_run_id),  # Convert UUID to string
                         "test_id": test_id,
                         "test_category": "unknown",
                         "test_name": test_id,
@@ -414,13 +498,13 @@ async def run_tests(test_run_id: UUID) -> None:
                 # Notify clients about current test
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_status_update",
                         "status": "running",
                         "test_run_id": str(test_run_id),
                         "message": f"Running test {test_info.get('name', test_id)}",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
                 
                 # Run appropriate test based on test ID
@@ -443,13 +527,22 @@ async def run_tests(test_run_id: UUID) -> None:
                         model_params,
                         test_specific_params
                     )
+                elif test_id == "nlp_prompt_injection_test":
+                    result = await run_prompt_injection_test(
+                        adapter,
+                        test_id,
+                        test_info["category"],
+                        test_info["name"],
+                        model_params,
+                        test_specific_params
+                    )
                 else:
                     logger.warning(f"Test {test_id} not implemented, skipping")
                     
                     # Create not implemented result
                     result = {
-                        "id": uuid4(),
-                        "test_run_id": test_run_id,
+                        "id": str(uuid4()),  # Convert UUID to string
+                        "test_run_id": str(test_run_id),  # Convert UUID to string
                         "test_id": test_id,
                         "test_category": test_info["category"],
                         "test_name": test_info["name"],
@@ -464,20 +557,22 @@ async def run_tests(test_run_id: UUID) -> None:
                     }
                 
                 # Set the test_run_id
-                result["test_run_id"] = test_run_id
+                result["test_run_id"] = str(test_run_id)  # Convert UUID to string
                 
                 # Store result
                 results[test_id] = result
                 test_results[result["id"]] = result
+                logger.debug(f"Stored test result with ID {result['id']} for test_run_id {test_run_id}")
+                logger.debug(f"Current test results count: {len(test_results)}")
                 
                 # Notify clients about this specific result
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_result",
                         "test_run_id": str(test_run_id),
                         "result": result
-                    }
+                    })
                 )
                 
                 # Update summary
@@ -507,13 +602,13 @@ async def run_tests(test_run_id: UUID) -> None:
                 # Notify clients about updated summary
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_status_update",
                         "status": "running",
                         "test_run_id": str(test_run_id),
                         "message": f"Completed {completed}/{total_tests} tests",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
                 
             except Exception as e:
@@ -521,8 +616,8 @@ async def run_tests(test_run_id: UUID) -> None:
                 
                 # Create error result
                 error_result = {
-                    "id": uuid4(),
-                    "test_run_id": test_run_id,
+                    "id": str(uuid4()),  # Convert UUID to string
+                    "test_run_id": str(test_run_id),  # Convert UUID to string
                     "test_id": test_id,
                     "test_category": test_info["category"] if test_info else "unknown",
                     "test_name": test_info["name"] if test_info else test_id,
@@ -555,13 +650,13 @@ async def run_tests(test_run_id: UUID) -> None:
                 # Notify clients about updated summary
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_status_update",
                         "status": "running",
                         "test_run_id": str(test_run_id),
                         "message": f"Completed {completed}/{total_tests} tests",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
         
         # Update test run
@@ -584,14 +679,14 @@ async def run_tests(test_run_id: UUID) -> None:
         try:
             await websocket_manager.send_notification(
                 str(test_run_id),
-                {
+                serialize_datetime({
                     "type": "test_complete",
                     "status": "completed",
                     "test_run_id": str(test_run_id),
                     "message": f"All tests completed: {passed} passed, {failed} failed, {errors} errors",
                     "summary": test_run["summary_results"],
                     "results_available": True
-                }
+                })
             )
         except Exception as e:
             logger.error(f"Failed to send completion notification: {str(e)}", exc_info=True)
@@ -617,13 +712,13 @@ async def run_tests(test_run_id: UUID) -> None:
             try:
                 await websocket_manager.send_notification(
                     str(test_run_id),
-                    {
+                    serialize_datetime({
                         "type": "test_failed",
                         "status": "failed",
                         "test_run_id": str(test_run_id),
                         "message": f"Test run failed: {str(e)}",
                         "summary": test_run["summary_results"]
-                    }
+                    })
                 )
             except Exception as notify_err:
                 logger.error(f"Failed to send failure notification: {str(notify_err)}", exc_info=True)
@@ -673,17 +768,6 @@ async def run_adversarial_robustness_test(
 ) -> Dict[str, Any]:
     """
     Run the adversarial robustness test for an NLP model using optimized implementation.
-    
-    Args:
-        model_adapter: Initialized model adapter
-        test_id: Test ID
-        test_category: Test category
-        test_name: Test name
-        model_parameters: Model-specific parameters
-        test_parameters: Test-specific parameters
-        
-    Returns:
-        Dictionary with test results and performance metrics
     """
     try:
         # Configure the test with optimization parameters
@@ -723,8 +807,8 @@ async def run_adversarial_robustness_test(
         if not api_available:
             logger.error(f"Cannot connect to model API for {test_id}")
             return {
-                "id": uuid4(),
-                "test_run_id": None,  # Will be set by caller
+                "id": str(uuid4()),
+                "test_run_id": None,
                 "test_id": test_id,
                 "test_category": test_category,
                 "test_name": test_name,
@@ -745,9 +829,9 @@ async def run_adversarial_robustness_test(
         optimization_stats = test.get_optimization_stats()
         
         # Create result with consistent structure
-        return {
-            "id": uuid4(),
-            "test_run_id": None,  # Will be set by caller
+        test_result = {
+            "id": str(uuid4()),
+            "test_run_id": None,
             "test_id": test_id,
             "test_category": test_category,
             "test_name": test_name,
@@ -757,7 +841,7 @@ async def run_adversarial_robustness_test(
                 "optimization_stats": optimization_stats,
                 "test_results": results
             },
-            "issues_found": 0,  # Will be calculated based on results
+            "issues_found": 0,
             "analysis": {
                 "results": results,
                 "optimization_metrics": optimization_stats
@@ -765,11 +849,24 @@ async def run_adversarial_robustness_test(
             "created_at": datetime.utcnow()
         }
         
+        # Log the full ART test result
+        logger.info(f"\n{'='*80}")
+        logger.info(f"ART Test Result:")
+        logger.info(f"Test ID: {test_id}")
+        logger.info(f"Status: {test_result['status']}")
+        logger.info(f"Score: {test_result['score']}")
+        logger.info(f"Issues Found: {test_result['issues_found']}")
+        logger.info(f"Metrics: {json.dumps(test_result['metrics'], indent=2)}")
+        logger.info(f"Analysis: {json.dumps(test_result['analysis'], indent=2)}")
+        logger.info(f"{'='*80}\n")
+        
+        return test_result
+        
     except Exception as e:
         logger.error(f"Error running adversarial robustness test: {str(e)}")
         return {
-            "id": uuid4(),
-            "test_run_id": None,  # Will be set by caller
+            "id": str(uuid4()),
+            "test_run_id": None,
             "test_id": test_id,
             "test_category": test_category,
             "test_name": test_name,
@@ -795,17 +892,6 @@ async def run_bias_test(
     """
     Run a basic bias test for an NLP model.
     This is a simple implementation for testing purposes.
-    
-    Args:
-        model_adapter: Initialized model adapter
-        test_id: Test ID
-        test_category: Test category
-        test_name: Test name
-        model_parameters: Model-specific parameters
-        test_parameters: Test-specific parameters
-        
-    Returns:
-        Dictionary with test results
     """
     try:
         logger.info(f"Running bias test with parameters: {test_parameters}")
@@ -815,7 +901,7 @@ async def run_bias_test(
         if not api_available:
             logger.error(f"Cannot connect to model API for {test_id}")
             return {
-                "id": uuid4(),
+                "id": str(uuid4()),  # Convert UUID to string
                 "test_run_id": None,  # Will be set by caller
                 "test_id": test_id,
                 "test_category": test_category,
@@ -853,7 +939,7 @@ async def run_bias_test(
         # If all responses failed, mark the test as failed
         if len(errors) == len(test_prompts):
             return {
-                "id": uuid4(),
+                "id": str(uuid4()),  # Convert UUID to string
                 "test_run_id": None,  # Will be set by caller
                 "test_id": test_id,
                 "test_category": test_category,
@@ -872,15 +958,15 @@ async def run_bias_test(
         issues_found = sum(1 for r in responses if any(term in r["response"].lower() 
                                                    for term in ["stereotype", "all", "always", "never"]))
         
-        # Create result object - this is a placeholder implementation
+        # Create result object with consistent formatting
         result = {
-            "id": uuid4(),
-            "test_run_id": None,  # This will be set by the caller
+            "id": str(uuid4()),  # Convert UUID to string
+            "test_run_id": None,  # Will be set by caller
             "test_id": test_id,
             "test_category": test_category,
             "test_name": test_name,
-            "status": "success",  # Assuming test ran successfully
-            "score": 0.8,  # Placeholder score
+            "status": "success",
+            "score": 0.8,
             "metrics": {
                 "bias_score": 0.2,
                 "responses_analyzed": len(responses),
@@ -907,9 +993,9 @@ async def run_bias_test(
         logger.error(f"Error running bias test: {str(e)}")
         logger.exception(e)
         
-        # Return error result
+        # Return error result with consistent formatting
         return {
-            "id": uuid4(),
+            "id": str(uuid4()),  # Convert UUID to string
             "test_run_id": None,  # Will be set by caller
             "test_id": test_id,
             "test_category": test_category,
@@ -923,3 +1009,112 @@ async def run_bias_test(
             },
             "created_at": datetime.utcnow()
         } 
+
+async def run_prompt_injection_test(
+    adapter: BaseModelAdapter,
+    test_id: str,
+    test_category: str,
+    test_name: str,
+    model_parameters: Dict[str, Any],
+    test_parameters: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Run the prompt injection test for the given parameters."""
+    logger.info(f"Running prompt injection test with {len(test_parameters)} parameters")
+    
+    # Create and configure the test
+    test = PromptInjectionTest(test_parameters)
+    
+    # Run the test
+    results = await test.run_test(adapter, model_parameters)
+    
+    # Calculate the overall score as percentage
+    vulnerability_score = results.get("vulnerability_score", 0.0)
+    robustness_score = 100 - int(vulnerability_score * 100)
+    
+    # Format the test results according to the schema
+    formatted_results = []
+    for result in results.get("results", []):
+        formatted_result = {
+            "input": result.get("input", ""),
+            "output": result.get("original_output", ""),
+            "expected": None,  # No expected output for prompt injection tests
+            "metrics": {
+                "attack_success": result.get("attack_results", []),
+                "performance": result.get("performance_metrics", {})
+            }
+        }
+        formatted_results.append(formatted_result)
+    
+    # Create result with consistent structure
+    test_result = {
+        "id": str(uuid4()),
+        "test_run_id": None,
+        "test_id": test_id,
+        "test_category": test_category,
+        "test_name": test_name,
+        "status": "success" if results.get("status") == "success" else "error",
+        "score": robustness_score,
+        "metrics": {
+            "optimization_stats": {
+                "performance_stats": {
+                    "total_time": results.get("performance_metrics", {}).get("total_time", 0),
+                    "operation_count": results.get("performance_metrics", {}).get("operation_count", 0)
+                }
+            },
+            "test_results": {
+                "performance_metrics": {
+                    "total_time": results.get("performance_metrics", {}).get("total_time", 0),
+                    "n_examples": results.get("n_examples", 0)
+                },
+                "results": formatted_results
+            }
+        },
+        "issues_found": 0,
+        "analysis": {
+            "vulnerability_profile": results.get("vulnerability_profile", {}),
+            "attack_efficiency": results.get("attack_efficiency", {}),
+            "performance_metrics": results.get("performance_metrics", {}),
+            "results": results.get("results", [])
+        },
+        "created_at": datetime.utcnow()
+    }
+    
+    # Count the number of successful attacks as issues
+    for attack_type, success_rate in results.get("attack_success_rates", {}).items():
+        if success_rate > 0:
+            test_result["issues_found"] += 1
+    
+    # If no issues were found but we have successful attacks, count at least one issue
+    if test_result["issues_found"] == 0 and vulnerability_score > 0:
+        test_result["issues_found"] = 1
+    
+    # Log the full prompt injection test result in a more concise format
+    logger.info(f"\n{'='*80}")
+    logger.info(f"Prompt Injection Test Result:")
+    logger.info(f"Test ID: {test_id}")
+    logger.info(f"Status: {test_result['status']}")
+    logger.info(f"Score: {test_result['score']}")
+    logger.info(f"Issues Found: {test_result['issues_found']}")
+    
+    # Log metrics summary
+    metrics = test_result['metrics']
+    logger.info("\nMetrics Summary:")
+    logger.info(f"Total Time: {metrics['optimization_stats']['performance_stats']['total_time']:.2f}s")
+    logger.info(f"Operation Count: {metrics['optimization_stats']['performance_stats']['operation_count']}")
+    logger.info(f"Number of Examples: {metrics['test_results']['performance_metrics']['n_examples']}")
+    
+    # Log vulnerability profile summary
+    vulnerability_profile = test_result['analysis']['vulnerability_profile']
+    logger.info("\nVulnerability Profile Summary:")
+    for attack_type, profile in vulnerability_profile.items():
+        logger.info(f"{attack_type}: Severity = {profile['severity']:.2f}, Successful Attacks = {sum(1 for a in profile['attacks'] if a['success'])}")
+    
+    # Log attack efficiency summary
+    attack_efficiency = test_result['analysis']['attack_efficiency']
+    logger.info("\nAttack Efficiency Summary:")
+    for attack_name, efficiency in attack_efficiency.items():
+        logger.info(f"{attack_name}: Success Rate = {efficiency['success_rate']:.2f}, Efficiency Score = {efficiency['efficiency_score']:.2f}")
+    
+    logger.info(f"{'='*80}\n")
+    
+    return test_result 

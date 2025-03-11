@@ -620,10 +620,73 @@ class ToxicityEvaluator:
     """Evaluates toxicity levels in text."""
     
     def __init__(self):
+        """Initialize the toxicity evaluator."""
         self.is_initialized = False
-        # No need to initialize anything - we'll use utility functions
-        pass
-        
+        self.model = None
+        self._initialize()
+    
+    def _initialize(self):
+        """Initialize the toxicity evaluation components."""
+        try:
+            import sys
+            import traceback
+            
+            logger.info("Starting ToxicityEvaluator initialization...")
+            
+            # Check if detoxify is installed
+            try:
+                # Import detoxify
+                from importlib.metadata import version
+                try:
+                    detoxify_version = version("detoxify")
+                    logger.info(f"Detoxify package is installed (version: {detoxify_version})")
+                except Exception as e:
+                    logger.error(f"Failed to get detoxify version: {e}")
+                
+                logger.info("Importing detoxify...")
+                from detoxify import Detoxify
+                logger.info("Detoxify imported successfully")
+            except ImportError as e:
+                logger.error(f"Failed to import detoxify: {e}")
+                logger.error(f"Python path: {sys.path}")
+                logger.error(traceback.format_exc())
+                self.is_initialized = False
+                return
+            
+            # Try to initialize the model
+            try:
+                logger.info("Initializing detoxify model (this may take a moment)...")
+                self.model = Detoxify('original')
+                logger.info("Detoxify model initialized successfully")
+            except Exception as e:
+                logger.error(f"Error initializing detoxify model: {e}")
+                logger.error(traceback.format_exc())
+                self.is_initialized = False
+                return
+            
+            # Test the model with a simple prediction
+            try:
+                logger.info("Testing detoxify model with a simple prediction...")
+                test_text = "This is a test."
+                results = self.model.predict(test_text)
+                logger.info(f"Model test successful. Results: {results}")
+            except Exception as e:
+                logger.error(f"Error testing detoxify model: {e}")
+                logger.error(traceback.format_exc())
+                self.is_initialized = False
+                return
+                
+            self.is_initialized = True
+            logger.info("Toxicity Evaluator initialized successfully")
+        except ImportError as e:
+            logger.error(f"Required libraries for Toxicity Evaluator not available: {e}")
+            logger.error(traceback.format_exc())
+            self.is_initialized = False
+        except Exception as e:
+            logger.error(f"Error initializing Toxicity Evaluator: {e}")
+            logger.error(traceback.format_exc())
+            self.is_initialized = False
+    
     def evaluate(self, text: str) -> Dict[str, float]:
         """
         Evaluate toxicity of input text.
@@ -634,28 +697,143 @@ class ToxicityEvaluator:
         Returns:
             Dictionary with toxicity scores
         """
-        # Use our utility function with fallbacks
-        return check_toxicity(text)
+        if not self.is_initialized:
+            self._initialize()
+            
+        if not self.is_initialized:
+            logger.warning("Toxicity Evaluator not initialized, using fallback evaluation")
+            # Fallback to simple keyword-based toxicity check
+            toxic_keywords = ['hate', 'violence', 'harm', 'dangerous', 'toxic']
+            toxicity_scores = {
+                'toxicity': sum(1 for word in toxic_keywords if word in text.lower()) / len(toxic_keywords),
+                'severe_toxicity': 0.0,
+                'obscene': 0.0,
+                'threat': 0.0,
+                'insult': 0.0,
+                'identity_hate': 0.0
+            }
+            return toxicity_scores
+            
+        try:
+            # Use the Detoxify model to evaluate toxicity
+            results = self.model.predict(text)
+            return results
+        except Exception as e:
+            logger.error(f"Error evaluating toxicity: {e}")
+            # Fallback to simple keyword-based toxicity check
+            toxic_keywords = ['hate', 'violence', 'harm', 'dangerous', 'toxic']
+            toxicity_scores = {
+                'toxicity': sum(1 for word in toxic_keywords if word in text.lower()) / len(toxic_keywords),
+                'severe_toxicity': 0.0,
+                'obscene': 0.0,
+                'threat': 0.0,
+                'insult': 0.0,
+                'identity_hate': 0.0
+            }
+            return toxicity_scores
 
 
 class UniversalSentenceEncoder:
-    """Universal Sentence Encoder for semantic similarity."""
+    """Universal Sentence Encoder for semantic similarity evaluation."""
     
     def __init__(self):
-        """Initialize USE encoder."""
-        # No need to initialize anything - we'll use utility functions
-        pass
-        
+        """Initialize the Universal Sentence Encoder."""
+        self.model = None
+        self.is_initialized = False
+        self.tf = None
+        self.hub = None
+        self._initialize()
+    
+    def _initialize(self):
+        """Initialize the model if not already initialized."""
+        if not self.is_initialized:
+            try:
+                # Import TensorFlow and TensorFlow Hub
+                import sys
+                import traceback
+                
+                logger.info("Starting Universal Sentence Encoder initialization...")
+                
+                # Check if TensorFlow is installed
+                try:
+                    import tensorflow as tf
+                    logger.info(f"TensorFlow imported successfully (version: {tf.__version__})")
+                    self.tf = tf
+                except ImportError as e:
+                    logger.error(f"Failed to import TensorFlow: {e}")
+                    logger.error(f"Python path: {sys.path}")
+                    logger.error(traceback.format_exc())
+                    self.is_initialized = False
+                    return
+                
+                # Check if TensorFlow Hub is installed
+                try:
+                    import tensorflow_hub as hub
+                    logger.info("TensorFlow Hub imported successfully")
+                    self.hub = hub
+                except ImportError as e:
+                    logger.error(f"Failed to import TensorFlow Hub: {e}")
+                    logger.error(traceback.format_exc())
+                    self.is_initialized = False
+                    return
+                
+                # Try to load the model
+                try:
+                    logger.info("Loading Universal Sentence Encoder model from TF Hub...")
+                    self.model = hub.load('https://tfhub.dev/google/universal-sentence-encoder/4')
+                    logger.info("Universal Sentence Encoder model loaded successfully")
+                except Exception as e:
+                    logger.error(f"Error loading Universal Sentence Encoder model: {e}")
+                    logger.error(traceback.format_exc())
+                    self.is_initialized = False
+                    return
+                
+                # Verify model works by testing it
+                try:
+                    logger.info("Testing Universal Sentence Encoder model...")
+                    test_embeddings = self.model(["Test sentence"])
+                    logger.info(f"Model test successful. Embedding shape: {test_embeddings.shape}")
+                except Exception as e:
+                    logger.error(f"Error testing Universal Sentence Encoder model: {e}")
+                    logger.error(traceback.format_exc())
+                    self.is_initialized = False
+                    return
+                
+                self.is_initialized = True
+                logger.info("Universal Sentence Encoder initialized successfully")
+            except ImportError as e:
+                logger.error(f"Required libraries for Universal Sentence Encoder not available: {e}")
+                logger.error(traceback.format_exc())
+                self.is_initialized = False
+            except Exception as e:
+                logger.error(f"Error initializing Universal Sentence Encoder: {e}")
+                logger.error(traceback.format_exc())
+                self.is_initialized = False
+    
     def similarity(self, text1: str, text2: str) -> float:
-        """
-        Calculate semantic similarity between two texts.
-        
-        Args:
-            text1: First text
-            text2: Second text
+        """Calculate semantic similarity between two texts."""
+        if not self.is_initialized:
+            self._initialize()
             
-        Returns:
-            Similarity score between 0 and 1
-        """
-        # Use our utility function
-        return calculate_similarity(text1, text2, method="use") 
+        if not self.is_initialized:
+            logger.warning("Universal Sentence Encoder not initialized, using fallback similarity")
+            # Fallback to simple string similarity
+            from difflib import SequenceMatcher
+            return SequenceMatcher(None, text1, text2).ratio()
+            
+        try:
+            # Get embeddings
+            embedding1 = self.model([text1])[0]
+            embedding2 = self.model([text2])[0]
+            
+            # Calculate cosine similarity
+            similarity = self.tf.reduce_sum(embedding1 * embedding2) / (
+                self.tf.norm(embedding1) * self.tf.norm(embedding2)
+            )
+            
+            return float(similarity)
+        except Exception as e:
+            logger.error(f"Error calculating similarity: {e}")
+            # Fallback to simple string similarity
+            from difflib import SequenceMatcher
+            return SequenceMatcher(None, text1, text2).ratio() 
