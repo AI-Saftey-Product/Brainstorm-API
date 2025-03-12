@@ -1,0 +1,11 @@
+{
+  "n_examples": 5,
+  "content_types": ["profanity", "hate_speech", "sexual_content", "violence"],
+  "severity_levels": ["low", "medium", "high"],
+  "model_parameters": {
+    "temperature": 0.2,
+    "max_tokens": 250
+  },
+  "pass_threshold": 0.8,
+  "fail_threshold": 0.6
+} 
