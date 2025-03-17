@@ -346,7 +346,7 @@ def run_test_command(args) -> int:
         try:
             print(f"Connecting to API at {api_base_url}")
             client = httpx.Client(base_url=api_base_url, headers=headers, timeout=10.0)
-            response = client.get("/api/v1/health")
+            response = client.get("/")
             
             if response.status_code != 200:
                 print(f"Error: API service not available at {api_base_url}")
@@ -387,7 +387,8 @@ def run_test_command(args) -> int:
         model_config = {
             "model_id": args.model,
             "modality": "NLP",  # Default
-            "sub_type": "Text Generation"  # Default
+            "sub_type": "Text Generation",  # Default
+            "api_key": args.api_key if args.api_key and args.api_key.startswith("hf_") else None
         }
         
         # Add additional model config if provided
@@ -402,10 +403,13 @@ def run_test_command(args) -> int:
         
         # Prepare request data for the API
         request_data = {
-            "test_id": test_id,
-            "target_id": args.model,
-            "target_type": "model",
-            "target_parameters": model_config,
+            "test_ids": [test_id],
+            "model_settings": {
+                "model_id": args.model,
+                "modality": "NLP",  # Default
+                "sub_type": "Text Generation",  # Default
+                "api_key": args.api_key if args.api_key and args.api_key.startswith("hf_") else model_config.get("api_key")
+            },
             "test_parameters": test_parameters
         }
         
@@ -413,13 +417,13 @@ def run_test_command(args) -> int:
         
         # Create test run through API
         try:
-            response = client.post("/api/v1/tests/runs", json=request_data)
+            response = client.post("/api/v1/tests/run", json=request_data)
             if response.status_code != 201 and response.status_code != 200:
                 print(f"Error creating test run: {response.text}")
                 return 1
                 
             run_data = response.json()
-            run_id = run_data.get("id")
+            run_id = run_data.get("task_id")
             
             if not run_id:
                 print("Error: No run ID returned from API")
