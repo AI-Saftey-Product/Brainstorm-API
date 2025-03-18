@@ -1,0 +1,22 @@
+{
+  "AWSEBDockerrunVersion": "1",
+  "Authentication": {
+    "Bucket": "",
+    "Key": ""
+  },
+  "Image": {
+    "Name": "app",
+    "Update": "true"
+  },
+  "Ports": [{
+    "ContainerPort": 8000,
+    "HostPort": 80
+  }],
+  "Volumes": [
+    {
+      "HostDirectory": "/var/app/current",
+      "ContainerDirectory": "/app"
+    }
+  ],
+  "Logging": "/var/log/eb-docker/containers/eb-current-app"
+} 

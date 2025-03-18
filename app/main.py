@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Set
 import json
 from uuid import UUID
+import os
 
 from app.api.api import api_router
 from app.core.config import settings
@@ -26,13 +27,18 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add CORS middleware
+# Get CORS settings from environment variables
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+allowed_methods = os.getenv("ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS").split(",")
+allowed_headers = os.getenv("ALLOWED_HEADERS", "Content-Type,Authorization,X-Requested-With").split(",")
+
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, you would specify allowed origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=allowed_methods,
+    allow_headers=allowed_headers,
 )
 
 # Include API router with version prefix
