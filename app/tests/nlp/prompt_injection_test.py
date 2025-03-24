@@ -7,6 +7,7 @@ import random
 from datetime import datetime
 import uuid
 
+from app.tests.base_test import BaseTest
 from app.tests.nlp.data_providers import DataProviderFactory, DataProvider
 from app.tests.nlp.adversarial.base import AdversarialAttack
 from app.tests.nlp.adversarial.prompt_injection_attacks import (
@@ -20,11 +21,15 @@ from app.model_adapters.base_adapter import BaseModelAdapter
 
 logger = logging.getLogger(__name__)
 
-class PromptInjectionTest:
+class PromptInjectionTest(BaseTest):
     """Implementation of prompt injection testing."""
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the prompt injection test."""
+        super().__init__(config or {})
+        self.test_type = "prompt_injection"
+        self.test_category = "security"
+        
         # Initialize optimizations
         self.model_registry = ModelRegistry.get_instance()
         self.output_cache = OutputCache()
@@ -33,9 +38,6 @@ class PromptInjectionTest:
             rate_limit=config.get('rate_limit', None)
         )
         self.performance_monitor = PerformanceMonitor()
-        
-        # Store config
-        self.config = config or {}
         
         # Initialize attacks based on configuration
         self.attacks = self._initialize_attacks()
@@ -374,35 +376,19 @@ class PromptInjectionTest:
             "weighted_score": weighted_score
         }
     
-    async def run_test(
-        self,
-        model_adapter: BaseModelAdapter,
-        parameters: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Run the prompt injection test."""
         try:
             self.performance_monitor.start_operation("full_test")
             
             # Get model type from parameters
-            target_type = parameters.get("target_type", "text_generation")
-            logger.info(f"\n{'='*80}")
+            target_type = model_parameters.get("target_type", "text_generation")
             logger.info(f"Starting prompt injection test for model type: {target_type}")
-            logger.info(f"Model ID: {model_adapter.model_id}")
-            logger.info(f"{'='*80}\n")
-            
-            # Log the attacks that will be used
-            logger.info(f"Number of attacks configured: {len(self.attacks)}")
-            for idx, attack in enumerate(self.attacks):
-                logger.info(f"Attack {idx+1}: {attack.name}")
             
             # Get test inputs
-            n_examples = parameters.get("n_examples", 5)
+            n_examples = model_parameters.get("n_examples", 5)
             logger.info(f"Fetching {n_examples} test examples...")
-            
-            test_inputs = await self.performance_monitor.measure_operation(
-                "get_test_inputs",
-                lambda: self.get_test_inputs(target_type, n_examples)
-            )
+            test_inputs = await self.get_test_inputs(target_type, n_examples)
             
             if len(test_inputs) < 2:
                 logger.warning("Not enough test inputs available")
@@ -412,45 +398,46 @@ class PromptInjectionTest:
                     "n_examples": len(test_inputs)
                 }
             
-            # Process each test input with all attacks
-            results = []
+            logger.info(f"Successfully fetched {len(test_inputs)} test examples")
             
-            for idx, test_input in enumerate(test_inputs):
-                logger.info(f"\n{'='*80}")
-                logger.info(f"Processing test input {idx+1}/{len(test_inputs)}")
-                logger.info(f"{'='*80}\n")
+            # Process tests in parallel with resource management
+            async with self.resource_manager.acquire():
+                # Create tasks for each test input
+                tasks = []
+                for test_input in test_inputs:
+                    task = asyncio.create_task(self._process_single_test(
+                        self.model, 
+                        test_input, 
+                        model_parameters
+                    ))
+                    tasks.append(task)
                 
-                result = await self._process_single_test(
-                    model_adapter,
-                    test_input,
-                    parameters
-                )
-                
-                results.append(result)
+                # Wait for all tasks to complete
+                logger.info(f"Processing {len(tasks)} tests in parallel...")
+                results = await asyncio.gather(*tasks)
+                logger.info(f"Test processing complete")
             
-            # Calculate performance metrics
-            performance_summary = self.performance_monitor.get_summary()
+            self.performance_monitor.end_operation("full_test")
             
-            # Calculate success rates for each attack
+            # Calculate attack success rates and efficiency metrics
+            logger.info("Calculating attack success rates...")
             attack_success_rates = self._calculate_attack_success_rates(results)
+            logger.info(f"Attack success rates: {attack_success_rates}")
             
-            # Calculate attack efficiency
+            logger.info("Calculating attack efficiency...")
             attack_efficiency = self._calculate_attack_efficiency(attack_success_rates)
+            logger.info(f"Attack efficiency calculated")
             
             # Generate vulnerability profile
+            logger.info("Generating vulnerability profile...")
             vulnerability_profile = self._generate_vulnerability_profile(results)
+            logger.info("Vulnerability profile generated")
             
-            # Calculate overall model vulnerability score
+            # Get performance summary
+            performance_summary = self.performance_monitor.get_summary()
+            
+            # Calculate overall vulnerability score
             vulnerability_score = self._calculate_vulnerability_score(vulnerability_profile)
-            
-            # Log the final metrics
-            logger.info(f"\n{'='*80}")
-            logger.info(f"Test Summary:")
-            logger.info(f"Total examples tested: {len(results)}")
-            logger.info(f"Vulnerability score: {vulnerability_score:.2f}")
-            logger.info(f"Attack success rates: {attack_success_rates}")
-            logger.info(f"Performance metrics: {performance_summary}")
-            logger.info(f"{'='*80}\n")
             
             return {
                 "status": "success",

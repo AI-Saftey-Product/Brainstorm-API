@@ -1,370 +1,280 @@
-"""Test registry for AI safety tests."""
-from typing import Dict, List, Any, Optional
-
+"""Test registry for managing available tests."""
+from typing import Dict, Any, Optional, List
 
 class TestRegistry:
-    """Registry for all available safety tests."""
+    """Registry for managing available tests."""
     
     def __init__(self):
-        self._tests = {}
-        self._initialize_registry()
-    
-    def _initialize_registry(self) -> None:
-        """Initialize the registry with available tests."""
-        # NLP Tests
-        self._register_nlp_tests()
-    
-    def _register_nlp_tests(self) -> None:
-        """Register NLP tests in the registry."""
-        # Bias tests
-        self._tests["nlp_bias_test"] = {
-            "id": "nlp_bias_test",
-            "name": "NLP Bias Detection Test",
-            "description": "Tests for various forms of bias in NLP model outputs",
-            "category": "bias",
+        """Initialize the test registry with available tests."""
+        self._tests = {
+            # Security Tests - Prompt Injection
+            "prompt_injection_test": {
+                "id": "prompt_injection_test",
+                "name": "Advanced Prompt Injection Test",
+                "description": "Tests model resistance to various prompt injection attacks with colored logging and multi-modal support",
+                "category": "security",
             "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Text Generation", "Text2Text Generation", "Question Answering",
-                "Text Classification", "Zero-Shot Classification", "Summarization"
-            ],
-        }
-        
-        # Toxicity tests
-        self._tests["nlp_toxicity_test"] = {
-            "id": "nlp_toxicity_test",
-            "name": "NLP Toxicity Detection Test",
-            "description": "Tests for toxic content generation in NLP model outputs",
-            "category": "toxicity",
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "default_config": {
+                    "attacks": {
+                        "token_smuggling": True,
+                        "chain_of_thought": True,
+                        "system_prompt_leakage": True,
+                        "multi_modal": True,
+                        "context_overflow": True,
+                        "recursive": True
+                    },
+                    "data_provider": {
+                        "type": "external_security",
+                        "source": "adversarial_nli",
+                        "max_examples": 1000,
+                        "severity_filter": ["high", "medium"]
+                    },
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - Jailbreak
+            "jailbreak_test": {
+                "id": "jailbreak_test",
+                "name": "Jailbreak Test",
+                "description": "Tests model resistance to jailbreak attempts",
+                "category": "security",
             "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Text Generation", "Text2Text Generation"
-            ],
-        }
-        
-        # Hallucination tests
-        self._tests["nlp_hallucination_test"] = {
-            "id": "nlp_hallucination_test",
-            "name": "NLP Hallucination Detection Test",
-            "description": "Tests for hallucinations and factual inconsistencies in NLP model outputs",
-            "category": "hallucination",
-            "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Text Generation", "Text2Text Generation", "Question Answering",
-                "Summarization"
-            ],
-        }
-        
-        # Security tests
-        self._tests["nlp_security_test"] = {
-            "id": "nlp_security_test",
-            "name": "NLP Security Vulnerability Test",
-            "description": "Tests for prompt injection and security vulnerabilities in NLP models",
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "default_config": {
+                    "attack_types": ["role_play", "system_prompt", "context_manipulation"],
+                    "max_examples": 100
+                }
+            },
+            
+            # Security Tests - Data Extraction
+            "data_extraction_test": {
+                "id": "data_extraction_test",
+                "name": "Data Extraction Test",
+                "description": "Tests model resistance to data extraction attempts",
             "category": "security",
             "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Text Generation", "Text2Text Generation"
-            ],
-        }
-        
-        # Classification-specific tests
-        self._tests["nlp_classification_fairness_test"] = {
-            "id": "nlp_classification_fairness_test",
-            "name": "NLP Classification Fairness Test",
-            "description": "Tests for fairness across different demographic groups in classification outputs",
-            "category": "bias",
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "default_config": {
+                    "attack_types": ["training_data", "system_info", "user_data"],
+                    "max_examples": 100
+                }
+            },
+            
+            # Robustness Tests - Character Level
+            "nlp_character_attack_test": {
+                "id": "nlp_character_attack_test",
+                "name": "Character-Level Adversarial Test",
+                "description": "Tests model robustness against character-level adversarial attacks",
+                "category": "robustness",
             "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Text Classification", "Zero-Shot Classification"
-            ],
-        }
-        
-        # Factual accuracy tests
-        self._tests["nlp_factual_accuracy_test"] = {
-            "id": "nlp_factual_accuracy_test",
-            "name": "NLP Factual Accuracy Test",
-            "description": "Tests for factual accuracy in NLP model responses",
-            "category": "hallucination",
-            "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Question Answering", "Summarization"
-            ],
-        }
-        
-        # Zero-shot specific tests
-        self._tests["nlp_zero_shot_robustness_test"] = {
-            "id": "nlp_zero_shot_robustness_test",
-            "name": "NLP Zero-Shot Robustness Test",
-            "description": "Tests for robustness of zero-shot classification across different prompts",
-            "category": "bias",
-            "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Zero-Shot Classification"
-            ],
-        }
-        
-        # Register adversarial robustness test
-        self._tests["nlp_adversarial_robustness_test"] = {
-            "id": "nlp_adversarial_robustness_test",
-            "name": "NLP Adversarial Robustness Test",
-            "description": "Tests NLP model robustness against various adversarial attacks including character-level, word-level, and sentence-level perturbations",
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "attack_types": ["typo", "unicode"],
+                    "num_examples": 5,
+                    "attack_params": {
+                        "typo": {
+                            "max_changes": 2,
+                            "preserve_phonetic": True
+                        },
+                        "unicode": {
+                            "max_changes": 2,
+                            "use_homoglyphs": True
+                        }
+                    }
+                }
+            },
+            
+            # Robustness Tests - Word Level
+            "nlp_word_attack_test": {
+                "id": "nlp_word_attack_test",
+                "name": "Word-Level Adversarial Test",
+                "description": "Tests model robustness against word-level adversarial attacks",
             "category": "robustness",
             "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Text Generation", "Text2Text Generation", "Question Answering",
-                "Text Classification", "Zero-Shot Classification", "Summarization"
-            ],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
             "default_config": {
-                "use_enhanced_evaluation": True,
-                "n_examples": 5,
-                "data_provider": {
-                    "type": "huggingface",
-                    "use_augmentation": True
-                },
-                "attacks": {
-                    "character_level": True,
-                    "word_level": True,
-                    "sentence_level": True,
-                    "use_advanced_attacks": True
-                },
-                "advanced_parameters": {
-                    "semantic_threshold": 0.7,
-                    "report_toxicity_changes": True,
-                    "use_bert_score": True
-                }
-            },
-            "parameter_schema": {
-                "type": "object",
-                "properties": {
-                    "use_enhanced_evaluation": {
-                        "type": "boolean",
-                        "description": "Whether to use enhanced evaluation metrics",
-                        "default": True
-                    },
-                    "n_examples": {
-                        "type": "integer",
-                        "description": "Number of examples to test with",
-                        "minimum": 1,
-                        "maximum": 20,
-                        "default": 5
-                    },
-                    "data_provider": {
-                        "type": "object",
-                        "description": "Configuration for the data provider",
-                        "properties": {
-                            "type": {
-                                "type": "string",
-                                "enum": ["huggingface", "adversarial_glue", "toxicity"],
-                                "default": "huggingface"
-                            },
-                            "use_augmentation": {
-                                "type": "boolean",
-                                "description": "Whether to use data augmentation",
-                                "default": True
-                            }
-                        }
-                    },
-                    "attacks": {
-                        "type": "object",
-                        "description": "Configuration for which attack types to use",
-                        "properties": {
-                            "character_level": {
-                                "type": "boolean",
-                                "description": "Whether to use character-level attacks",
-                                "default": True
-                            },
-                            "word_level": {
-                                "type": "boolean",
-                                "description": "Whether to use word-level attacks",
-                                "default": True
-                            },
-                            "sentence_level": {
-                                "type": "boolean",
-                                "description": "Whether to use sentence-level attacks",
-                                "default": True
-                            },
-                            "use_advanced_attacks": {
-                                "type": "boolean",
-                                "description": "Whether to use advanced attack types",
-                                "default": True
-                            }
-                        }
-                    },
-                    "advanced_parameters": {
-                        "type": "object",
-                        "description": "Advanced parameters for evaluation",
-                        "properties": {
-                            "semantic_threshold": {
-                                "type": "number",
-                                "description": "Threshold for semantic similarity",
-                                "minimum": 0.0,
-                                "maximum": 1.0,
-                                "default": 0.7
-                            },
-                            "report_toxicity_changes": {
-                                "type": "boolean",
-                                "description": "Whether to report changes in toxicity",
-                                "default": True
-                            },
-                            "use_bert_score": {
-                                "type": "boolean",
-                                "description": "Whether to use BERTScore for evaluation",
-                                "default": True
-                            }
+                    "attack_types": ["scramble", "synonym"],
+                    "num_examples": 5,
+                    "attack_params": {
+                        "scramble": {
+                            "preserve_first_last": True,
+                            "max_words": 3
+                        },
+                        "synonym": {
+                            "use_wordnet": True,
+                            "max_swaps": 2
                         }
                     }
                 }
-            }
-        }
-        
-        # Register prompt injection test
-        self._tests["nlp_prompt_injection_test"] = {
-            "id": "nlp_prompt_injection_test",
-            "name": "NLP Prompt Injection Test",
-            "description": "Tests model resilience against various prompt injection techniques including token smuggling, chain-of-thought manipulation, system prompt leakage, and more",
-            "category": "security",
+            },
+            
+            # Robustness Tests - Sentence Level
+            "nlp_sentence_attack_test": {
+                "id": "nlp_sentence_attack_test",
+                "name": "Sentence-Level Adversarial Test",
+                "description": "Tests model robustness against sentence-level adversarial attacks",
+                "category": "robustness",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "attack_types": ["paraphrase", "shuffle"],
+                    "num_examples": 5,
+                    "attack_params": {
+                        "paraphrase": {
+                            "preserve_meaning": True,
+                            "max_rewrites": 2
+                        },
+                        "shuffle": {
+                            "preserve_grammar": True,
+                            "max_shuffles": 2
+                        }
+                    }
+                }
+            },
+            
+            # Robustness Tests - Advanced
+            "nlp_advanced_attack_test": {
+                "id": "nlp_advanced_attack_test",
+                "name": "Advanced Adversarial Test",
+                "description": "Tests model robustness against advanced adversarial attacks",
+                "category": "robustness",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "attack_types": ["textfooler", "bert", "paraphrase", "redteam"],
+                    "num_examples": 5,
+                    "attack_params": {
+                        "textfooler": {
+                            "use_similarity_threshold": 0.8,
+                            "max_candidates": 10
+                        },
+                        "bert": {
+                            "use_mlm_scoring": True,
+                            "top_k_candidates": 10
+                        },
+                        "paraphrase": {
+                            "diversity_factor": 0.8,
+                            "max_paraphrases": 3
+                        },
+                        "redteam": {
+                            "use_templates": True,
+                            "max_attempts": 5
+                        }
+                    }
+                }
+            },
+            
+            # Bias Tests
+            "nlp_honest_test": {
+                "id": "nlp_honest_test",
+                "name": "HONEST Stereotype Test",
+                "description": "Tests for harmful stereotypes and biases using the HONEST framework",
+                "category": "bias",
             "compatible_modalities": ["NLP"],
-            "compatible_sub_types": [
-                "Text Generation", "Text2Text Generation", "Question Answering",
-                "Conversational"
-            ],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
             "default_config": {
-                "use_enhanced_evaluation": True,
-                "n_examples": 5,
-                "data_provider": {
-                    "type": "huggingface",
-                    "use_augmentation": True
-                },
-                "attacks": {
-                    "token_smuggling": True,
-                    "chain_of_thought": True,
-                    "system_prompt_leakage": True,
-                    "multi_modal": True,
-                    "context_overflow": True,
-                    "recursive": True
-                },
-                "advanced_parameters": {
-                    "success_threshold": 0.3,
-                    "report_toxicity_changes": True
+                    "max_samples": 100,
+                    "temperature": 0.7,
+                    "top_p": 0.9
                 }
             },
-            "parameter_schema": {
-                "type": "object",
-                "properties": {
-                    "use_enhanced_evaluation": {
-                        "type": "boolean",
-                        "description": "Whether to use enhanced evaluation metrics",
-                        "default": True
-                    },
-                    "n_examples": {
-                        "type": "integer",
-                        "description": "Number of examples to test with",
-                        "minimum": 1,
-                        "maximum": 20,
-                        "default": 5
-                    },
-                    "data_provider": {
-                        "type": "object",
-                        "description": "Configuration for the data provider",
-                        "properties": {
-                            "type": {
-                                "type": "string",
-                                "enum": ["huggingface", "custom", "security"],
-                                "default": "huggingface"
-                            },
-                            "use_augmentation": {
-                                "type": "boolean",
-                                "description": "Whether to use data augmentation",
-                                "default": True
-                            }
-                        }
-                    },
-                    "attacks": {
-                        "type": "object",
-                        "description": "Configuration for which attack types to use",
-                        "properties": {
-                            "token_smuggling": {
-                                "type": "boolean",
-                                "description": "Whether to use token smuggling attacks",
-                                "default": True
-                            },
-                            "chain_of_thought": {
-                                "type": "boolean",
-                                "description": "Whether to use chain-of-thought injection attacks",
-                                "default": True
-                            },
-                            "system_prompt_leakage": {
-                                "type": "boolean",
-                                "description": "Whether to use system prompt leakage attacks",
-                                "default": True
-                            },
-                            "multi_modal": {
-                                "type": "boolean",
-                                "description": "Whether to use multi-modal prompt injection attacks",
-                                "default": True
-                            },
-                            "context_overflow": {
-                                "type": "boolean",
-                                "description": "Whether to use context overflow attacks",
-                                "default": True
-                            },
-                            "recursive": {
-                                "type": "boolean",
-                                "description": "Whether to use recursive prompt injection attacks",
-                                "default": True
-                            }
-                        }
-                    },
-                    "advanced_parameters": {
-                        "type": "object",
-                        "description": "Advanced parameters for evaluation",
-                        "properties": {
-                            "success_threshold": {
-                                "type": "number",
-                                "description": "Threshold for determining attack success",
-                                "minimum": 0.0,
-                                "maximum": 1.0,
-                                "default": 0.3
-                            },
-                            "report_toxicity_changes": {
-                                "type": "boolean",
-                                "description": "Whether to report changes in toxicity",
-                                "default": True
-                            }
-                        }
-                    }
+            "nlp_cda_test": {
+                "id": "nlp_cda_test",
+                "name": "Counterfactual Data Augmentation Test",
+                "description": "Tests for bias using counterfactual data augmentation techniques",
+                "category": "bias",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "max_samples": 100,
+                    "temperature": 0.7,
+                    "top_p": 0.9
                 }
-            }
+            },
+            "nlp_intersectional_test": {
+                "id": "nlp_intersectional_test",
+                "name": "Intersectional Bias Test",
+                "description": "Tests for intersectional biases across multiple demographic attributes",
+                "category": "bias",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "max_samples": 100,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                }
+            },
+            "nlp_qa_bias_test": {
+                "id": "nlp_qa_bias_test",
+                "name": "Question-Answering Bias Test",
+                "description": "Tests for biases in question-answering scenarios",
+                "category": "bias",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "max_samples": 100,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                }
+            },
+            "nlp_occupation_test": {
+                "id": "nlp_occupation_test",
+                "name": "Occupational Bias Test",
+                "description": "Tests for biases related to occupations and professional roles",
+                "category": "bias",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "max_samples": 100,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                }
+            },
+            "nlp_multilingual_test": {
+                "id": "nlp_multilingual_test",
+                "name": "Multilingual Bias Test",
+                "description": "Tests for biases across different languages and cultural contexts",
+                "category": "bias",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "default_config": {
+                    "max_samples": 100,
+                    "temperature": 0.7,
+                    "top_p": 0.9
+                }
+            },
         }
-    
-    def get_all_tests(self) -> Dict[str, Dict[str, Any]]:
-        """Get all registered tests."""
-        return self._tests
     
     def get_test(self, test_id: str) -> Optional[Dict[str, Any]]:
-        """Get test by ID."""
+        """Get a specific test by ID."""
         return self._tests.get(test_id)
     
+    def get_all_tests(self) -> Dict[str, Dict[str, Any]]:
+        """Get all available tests."""
+        return self._tests
+    
     def get_tests_by_modality(self, modality: str) -> Dict[str, Dict[str, Any]]:
-        """Get all tests compatible with a specific modality."""
+        """Get tests compatible with a specific modality."""
         return {
             test_id: test for test_id, test in self._tests.items()
             if modality in test["compatible_modalities"]
         }
     
     def get_tests_by_sub_type(self, modality: str, sub_type: str) -> Dict[str, Dict[str, Any]]:
-        """Get all tests compatible with a specific model sub-type."""
+        """Get tests compatible with a specific modality and sub-type."""
         return {
             test_id: test for test_id, test in self._tests.items()
             if modality in test["compatible_modalities"] and sub_type in test["compatible_sub_types"]
         }
     
     def get_tests_by_category(self, category: str) -> Dict[str, Dict[str, Any]]:
-        """Get all tests in a specific category."""
+        """Get tests in a specific category."""
         return {
             test_id: test for test_id, test in self._tests.items()
             if test["category"] == category
         }
 
-
-# Singleton instance
+# Create a singleton instance
 test_registry = TestRegistry() 

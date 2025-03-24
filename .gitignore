@@ -130,3 +130,12 @@ Thumbs.db
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+app/tests/nlp/adversarial/__pycache__/character_attacks.cpython-312.pyc
+app/tests/nlp/adversarial/__pycache__/advanced_attacks.cpython-312.pyc
+app/tests/nlp/__pycache__/data_providers.cpython-312.pyc
+app/tests/nlp/__pycache__/__init__.cpython-312.pyc
+app/test_registry/__pycache__/registry.cpython-312.pyc
+app/services/__pycache__/test_service.cpython-312.pyc
+app/model_adapters/__pycache__/nlp_adapter.cpython-312.pyc
+app/__pycache__/main.cpython-312.pyc
+app/__pycache__/__init__.cpython-312.pyc

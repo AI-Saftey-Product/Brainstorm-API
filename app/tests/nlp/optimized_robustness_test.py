@@ -1,9 +1,10 @@
-"""Optimized implementation of adversarial robustness testing."""
-
-import logging
+"""Optimized version of the adversarial robustness test."""
 from typing import Dict, Any, List, Optional
+import logging
 import asyncio
+from datetime import datetime
 
+from app.tests.base_test import BaseTest
 from app.tests.nlp.data_providers import DataProviderFactory, DataProvider
 from app.tests.nlp.adversarial.base import AdversarialAttack, RobustnessTester
 from app.tests.nlp.adversarial.character_attacks import (
@@ -16,7 +17,8 @@ from app.tests.nlp.adversarial.sentence_attacks import (
     SentenceLevelAttack, DistractorSentenceAttack, SentenceShuffleAttack, ParaphraseAttack
 )
 from app.tests.nlp.adversarial.advanced_attacks import (
-    TextFoolerAttack, BERTAttack, RedTeamAttack, JailbreakAttack
+    TextFoolerAttack, BERTAttack, RedTeamAttack, JailbreakAttack,
+    SemanticPreservationEvaluator, ToxicityEvaluator, UniversalSentenceEncoder
 )
 from app.tests.nlp.adversarial.prompt_injection_attacks import (
     TokenSmugglingAttack, ChainOfThoughtInjectionAttack, SystemPromptLeakageAttack,
@@ -29,11 +31,15 @@ from app.model_adapters.base_adapter import BaseModelAdapter
 
 logger = logging.getLogger(__name__)
 
-class OptimizedRobustnessTest:
+class OptimizedRobustnessTest(BaseTest):
     """Optimized version of the adversarial robustness test."""
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize with optimizations and attacks."""
+        super().__init__(config or {})
+        self.test_type = "robustness"
+        self.test_category = "robustness"
+        
         # Initialize optimizations
         self.model_registry = ModelRegistry.get_instance()
         self.output_cache = OutputCache()
@@ -43,15 +49,17 @@ class OptimizedRobustnessTest:
         )
         self.performance_monitor = PerformanceMonitor()
         
-        # Store config
-        self.config = config or {}
-        
         # Initialize attacks based on configuration
         self.attacks = self._initialize_attacks()
         
         # Initialize evaluators
         self._initialize_evaluators()
         
+        # Storage for test outputs
+        self.perturbed_texts = []
+        self.original_outputs = []
+        self.perturbed_outputs = []
+
     def _initialize_attacks(self) -> List[AdversarialAttack]:
         """Initialize the configured attacks."""
         attacks = []
@@ -103,10 +111,6 @@ class OptimizedRobustnessTest:
         
     def _initialize_evaluators(self):
         """Initialize the evaluation components."""
-        from app.tests.nlp.adversarial.advanced_attacks import (
-            SemanticPreservationEvaluator, ToxicityEvaluator, UniversalSentenceEncoder
-        )
-        
         # Semantic preservation evaluator
         self.semantic_evaluator = SemanticPreservationEvaluator()
         
@@ -116,11 +120,6 @@ class OptimizedRobustnessTest:
         # Universal Sentence Encoder
         self.use_encoder = UniversalSentenceEncoder()
         
-        # Track all perturbed texts and model outputs for analysis
-        self.perturbed_texts = []
-        self.original_outputs = []
-        self.perturbed_outputs = []
-    
     async def get_test_inputs(self, target_type: str, n_examples: int) -> List[Dict[str, Any]]:
         """
         Generate test inputs for adversarial robustness testing.
@@ -280,17 +279,13 @@ class OptimizedRobustnessTest:
             
             return result
     
-    async def run_test(
-        self,
-        model_adapter: BaseModelAdapter,
-        parameters: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Run the optimized adversarial robustness test."""
         try:
             self.performance_monitor.start_operation("full_test")
             
             # Get model type from parameters
-            target_type = parameters.get("target_type", "text_generation")
+            target_type = model_parameters.get("target_type", "text_generation")
             logger.info(f"Starting optimized adversarial robustness test for model type: {target_type}")
             
             # Log the initialization status of key components
@@ -304,7 +299,7 @@ class OptimizedRobustnessTest:
                 logger.info(f"Attack {idx+1}: {attack.name} (initialized: {is_initialized})")
             
             # Get test inputs
-            n_examples = parameters.get("n_examples", 5)
+            n_examples = model_parameters.get("n_examples", 5)
             logger.info(f"Fetching {n_examples} test examples...")
             test_inputs = await self.performance_monitor.measure_operation(
                 "get_test_inputs",
@@ -327,9 +322,9 @@ class OptimizedRobustnessTest:
                 tasks = []
                 for test_input in test_inputs:
                     task = asyncio.create_task(self._process_single_test(
-                        model_adapter, 
+                        self.model, 
                         test_input, 
-                        parameters
+                        model_parameters
                     ))
                     tasks.append(task)
                 
