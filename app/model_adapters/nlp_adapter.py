@@ -403,6 +403,13 @@ class HuggingFaceNLPAdapter(BaseModelAdapter):
     async def _generate_text(self, prompt: str, parameters: Dict[str, Any]) -> str:
         """Generate text using the HuggingFace model."""
         try:
+            # Ensure prompt is a string
+            if isinstance(prompt, dict):
+                prompt = str(prompt)
+            elif not isinstance(prompt, str):
+                prompt = str(prompt)
+                logger.warning(f"Converting prompt from {type(prompt)} to string")
+
             # Make the API call - text_generation is synchronous
             response = self.client.text_generation(
                 prompt,
@@ -412,7 +419,16 @@ class HuggingFaceNLPAdapter(BaseModelAdapter):
                 do_sample=parameters.get("do_sample", True)
             )
             
-            return response
+            # Handle different response types
+            if isinstance(response, TextGenerationResponse):
+                return response.generated_text
+            elif isinstance(response, str):
+                return response
+            elif isinstance(response, dict) and "generated_text" in response:
+                return response["generated_text"]
+            else:
+                logger.warning(f"Unexpected response type: {type(response)}")
+                return str(response)
             
         except Exception as e:
             logger.error(f"Error in text generation: {str(e)}")

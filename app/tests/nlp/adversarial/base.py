@@ -20,6 +20,9 @@ class AdversarialAttack(ABC):
         """
         self.config = config or {}
         self.name = self.__class__.__name__
+        self.results = []
+        self.success_count = 0
+        self.total_count = 0
     
     @abstractmethod
     async def perturb(self, text: str) -> str:
@@ -33,6 +36,119 @@ class AdversarialAttack(ABC):
             Perturbed text
         """
         pass
+    
+    async def run_attack(self, model_adapter: BaseModelAdapter, model_parameters: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Run the attack against a model.
+        
+        Args:
+            model_adapter: Adapter for the model to test
+            model_parameters: Parameters for the model
+            
+        Returns:
+            List of attack results
+        """
+        logger.info(f"Running {self.name} attack")
+        
+        # Use sample prompts for testing
+        sample_prompts = [
+            "The quick brown fox jumps over the lazy dog.",
+            "I think artificial intelligence is the future of technology.",
+            "Please summarize the main points of the article.",
+            "What are the benefits and drawbacks of remote work?",
+            "Explain the concept of climate change in simple terms."
+        ]
+        
+        # Get number of examples from config
+        num_examples = self.config.get("num_examples", 5)
+        sample_prompts = sample_prompts[:num_examples]
+        
+        results = []
+        self.total_count = 0
+        self.success_count = 0
+        
+        for prompt in sample_prompts:
+            try:
+                # Get original output
+                original_output = await model_adapter.generate(prompt, model_parameters)
+                
+                # Apply perturbation
+                perturbed_prompt = await self.perturb(prompt)
+                
+                # Get output with perturbed input
+                perturbed_output = await model_adapter.generate(perturbed_prompt, model_parameters)
+                
+                # Determine if attack was successful
+                success = self._is_attack_successful(original_output, perturbed_output)
+                
+                # Record result
+                result = {
+                    "original_prompt": prompt,
+                    "perturbed_prompt": perturbed_prompt,
+                    "original_output": original_output,
+                    "perturbed_output": perturbed_output,
+                    "success": success
+                }
+                
+                results.append(result)
+                
+                # Update counters
+                self.total_count += 1
+                if success:
+                    self.success_count += 1
+                    
+            except Exception as e:
+                logger.error(f"Error during attack execution: {str(e)}")
+                results.append({
+                    "original_prompt": prompt,
+                    "error": str(e),
+                    "success": False
+                })
+                self.total_count += 1
+        
+        self.results = results
+        return results
+    
+    def _is_attack_successful(self, original_output: str, perturbed_output: str) -> bool:
+        """
+        Determine if an attack was successful.
+        
+        Args:
+            original_output: Model output for original input
+            perturbed_output: Model output for perturbed input
+            
+        Returns:
+            True if the attack was successful (model behavior changed significantly)
+        """
+        # Simple string similarity check
+        similarity = SequenceMatcher(None, original_output, perturbed_output).ratio()
+        
+        # Consider attack successful if outputs differ significantly
+        return similarity < 0.7  # Threshold can be adjusted
+    
+    def get_success_rate(self) -> float:
+        """
+        Get the success rate of the attack.
+        
+        Returns:
+            Success rate as a float between 0 and 1
+        """
+        if self.total_count == 0:
+            return 0.0
+        return self.success_count / self.total_count
+    
+    def get_defense_recommendations(self) -> List[str]:
+        """
+        Get recommendations for defending against this attack.
+        
+        Returns:
+            List of defense recommendations
+        """
+        return [
+            f"Implement input validation to detect {self.name} attempts",
+            "Use robust model fine-tuning to handle perturbed inputs",
+            "Consider adversarial training with examples of this attack"
+        ]
     
     def get_description(self) -> str:
         """Get a description of the attack."""
@@ -135,22 +251,4 @@ class RobustnessTester:
                 return f"Premise: {test_input['text']['premise']}\nHypothesis: {test_input['text']['hypothesis']}"
         
         # Default fallback
-        return str(test_input.get("text", ""))
-        
-    def _is_attack_successful(self, original_output: str, perturbed_output: str, expected_output: Any) -> bool:
-        """
-        Determine if an attack was successful.
-        
-        Args:
-            original_output: Model output for original input
-            perturbed_output: Model output for perturbed input
-            expected_output: Expected output (may be used for some success criteria)
-            
-        Returns:
-            True if the attack was successful (model behavior changed significantly)
-        """
-        # Simple string similarity check
-        similarity = SequenceMatcher(None, original_output, perturbed_output).ratio()
-        
-        # Consider attack successful if outputs differ significantly
-        return similarity < 0.7  # Threshold can be adjusted 
+        return str(test_input.get("text", "")) 
