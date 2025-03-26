@@ -25,6 +25,16 @@ class CDATest(BaseBiasTest):
         self.test_type = "cda"
         self.max_samples = config.get("max_samples", 100)
         self.similarity_threshold = config.get("advanced_parameters", {}).get("similarity_threshold", 0.8)
+        self.results = []  # Initialize an empty list to store results
+
+    async def run_test(self, model_adapter, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Run the CDA bias test with the given model adapter and parameters."""
+        # Store the model adapter and parameters for use in _run_test_implementation
+        self.model_adapter = model_adapter
+        self.model_params = model_parameters
+        
+        # Call the implementation
+        return await self._run_test_implementation(model_parameters)
 
     async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Run the CDA bias test implementation."""
@@ -33,110 +43,105 @@ class CDATest(BaseBiasTest):
             
             # Get test data
             test_data = self.data_provider.get_test_data(self.test_type, self.max_samples)
-            self.logger.info(f"Retrieved {len(test_data)} test cases")
             
-            await self._send_progress_update(0, len(test_data), "processing", {
-                "message": f"Retrieved {len(test_data)} counterfactual pairs to process"
+            # Handle case where test_data is already a list
+            test_cases = test_data if isinstance(test_data, list) else test_data.get('test_cases', [])
+            
+            self.logger.info(f"Retrieved {len(test_cases)} test cases")
+            
+            # Send initial progress update
+            await self._send_progress_update(0, len(test_cases), "processing", {
+                "message": f"Retrieved {len(test_cases)} counterfactual pairs to process"
             })
             
-            results = []
-            issues_found = 0
-            total_score = 0
-            similarity_scores = []
+            bias_scores = []
+            scores_by_category = {}
             
             # Process each test case
-            for i, test_case in enumerate(test_data):
-                current_progress = i + 1
-                await self._send_progress_update(
-                    current_progress,
-                    len(test_data),
-                    "processing",
-                    {"message": f"Processing counterfactual pair {current_progress}/{len(test_data)}"}
-                )
-                
-                original_prompt = test_case["original_prompt"]
-                counterfactual_prompt = test_case["counterfactual_prompt"]
-                protected_attribute = test_case.get("protected_attribute", "unknown")
-                
-                # Generate responses for both prompts
-                original_response = await self.generate_with_retry(
-                    original_prompt,
-                    **model_parameters
-                )
-                
-                counterfactual_response = await self.generate_with_retry(
-                    counterfactual_prompt,
-                    **model_parameters
-                )
-                
-                if not original_response or not counterfactual_response:
-                    self.logger.warning("Failed to generate response for one or both prompts")
-                    continue
-                
-                # Analyze responses
-                analysis_result = await self._analyze_pair(
-                    original_response,
-                    counterfactual_response,
-                    protected_attribute
-                )
-                
-                # Update metrics
-                if analysis_result["is_biased"]:
-                    issues_found += 1
+            for i, test_case in enumerate(test_cases):
+                try:
+                    # Get counterfactual pair
+                    original_prompt = test_case["original_prompt"]
+                    counterfactual_prompt = test_case["counterfactual_prompt"]
+                    
+                    # Get model responses
+                    self.logger.debug(f"Processing original prompt: {original_prompt}")
+                    original_response = await self.model_adapter.generate({"text": original_prompt})
+                    
+                    self.logger.debug(f"Processing counterfactual prompt: {counterfactual_prompt}")
+                    counterfactual_response = await self.model_adapter.generate({"text": counterfactual_prompt})
+                    
+                    # Analyze the responses
+                    score, analysis = self.evaluator.evaluate_bias(original_response, counterfactual_response, test_case)
+                    bias_scores.append(score)
+                    
+                    # Track score by category if available
+                    category = test_case.get("expected_attributes", {}).get("demographic", "general")
+                    scores_by_category.setdefault(category, []).append(score)
+                    
+                    # Update progress
+                    current_progress = i + 1
                     await self._send_progress_update(
                         current_progress,
-                        len(test_data),
-                        "issue_found",
-                        {
-                            "message": f"Found bias in counterfactual pair {current_progress}",
-                            "details": {
-                                "bias_score": analysis_result["bias_score"],
-                                "similarity_score": analysis_result["similarity_score"],
-                                "protected_attribute": protected_attribute,
-                                "differences": analysis_result.get("key_differences", [])
-                            }
-                        }
+                        len(test_cases),
+                        "processing",
+                        {"message": f"Processing counterfactual pair {current_progress}/{len(test_cases)}"}
                     )
+                    
+                    # Update metrics
+                    if analysis["is_biased"]:
+                        await self._send_progress_update(
+                            current_progress,
+                            len(test_cases),
+                            "issue_found",
+                            {
+                                "message": f"Found bias in counterfactual pair {current_progress}",
+                                "details": {
+                                    "bias_score": score,
+                                    "similarity_score": analysis["similarity_score"],
+                                    "protected_attribute": test_case.get("protected_attribute", "unknown"),
+                                    "differences": analysis.get("key_differences", [])
+                                }
+                            }
+                        )
                 
-                total_score += analysis_result["fairness_score"]
-                similarity_scores.append(analysis_result["similarity_score"])
-                
-                results.append({
-                    "id": str(current_progress),
-                    "original_prompt": original_prompt,
-                    "counterfactual_prompt": counterfactual_prompt,
-                    "original_response": original_response,
-                    "counterfactual_response": counterfactual_response,
-                    "protected_attribute": protected_attribute,
-                    "analysis": analysis_result
-                })
+                except Exception as e:
+                    self.logger.error(f"Error processing test case {i + 1}: {str(e)}")
+                    self.logger.exception(e)
             
             # Calculate final metrics
-            avg_score = total_score / len(results) if results else 0
-            avg_similarity = sum(similarity_scores) / len(similarity_scores) if similarity_scores else 0
+            avg_score = sum(bias_scores) / len(bias_scores) if bias_scores else 0
+            
+            # Calculate average similarity properly
+            all_similarities = []
+            for category in scores_by_category:
+                category_scores = scores_by_category.get(category, [])
+                all_similarities.extend(category_scores)
+            
+            avg_similarity = sum(all_similarities) / len(all_similarities) if all_similarities else 0
             
             # Create final result
             final_result = self.create_result("CDA Bias Test", "bias")
             final_result.update({
                 "status": "success",
                 "score": avg_score,
-                "issues_found": issues_found,
-                "results": results,
+                "issues_found": sum(1 for score in bias_scores if score < self.similarity_threshold),
+                "results": test_cases,
                 "analysis": {
-                    "protected_attributes": self._summarize_protected_attributes(results),
-                    "recommendations": self._generate_recommendations(results),
+                    "protected_attributes": self._summarize_protected_attributes(test_cases),
+                    "recommendations": self._generate_recommendations(test_cases),
                     "similarity_analysis": {
                         "average_similarity": avg_similarity,
-                        "similarity_variance": np.var(similarity_scores) if similarity_scores else 0,
+                        "similarity_variance": np.var(all_similarities) if all_similarities else 0,
                         "similarity_range": {
-                            "min": min(similarity_scores) if similarity_scores else 0,
-                            "max": max(similarity_scores) if similarity_scores else 0
+                            "min": min(all_similarities) if all_similarities else 0,
+                            "max": max(all_similarities) if all_similarities else 0
                         }
                     }
                 },
                 "metrics": {
-                    "total_pairs": len(results),
-                    "bias_rate": issues_found / len(results) if results else 0,
+                    "total_pairs": len(test_cases),
+                    "bias_rate": sum(1 for score in bias_scores if score < self.similarity_threshold) / len(bias_scores) if bias_scores else 0,
                     "average_fairness_score": avg_score,
                     "average_similarity_score": avg_similarity
                 }
@@ -185,7 +190,8 @@ class CDATest(BaseBiasTest):
             # Calculate bias score
             bias_score = 1 - similarity_score
             
-            return {
+            # Create the analysis result
+            result = {
                 "is_biased": similarity_score < self.similarity_threshold,
                 "similarity_score": similarity_score,
                 "fairness_score": fairness_score,
@@ -194,8 +200,16 @@ class CDATest(BaseBiasTest):
                 "protected_attribute": protected_attribute
             }
             
+            # Log the results with color coding
+            bias_status = "\033[91mBIASED\033[0m" if result["is_biased"] else "\033[92mUNBIASED\033[0m"
+            self.logger.info(f"\033[93m[CDA ANALYSIS]\033[0m: {bias_status} - Similarity: {similarity_score:.2f}")
+            self.logger.info(f"\033[93m[DIFFERENCES]\033[0m: {', '.join(differences[:3])}")
+            
+            return result
+            
         except Exception as e:
             self.logger.error(f"Error analyzing pair: {str(e)}")
+            self.logger.exception(e)
             return {
                 "is_biased": True,
                 "similarity_score": 0,
@@ -214,7 +228,15 @@ class CDATest(BaseBiasTest):
             if attr not in summary:
                 summary[attr] = {"total": 0, "biased": 0}
             summary[attr]["total"] += 1
-            if result["analysis"]["is_biased"]:
+            
+            # Check if there's an analysis key with is_biased or if is_biased exists directly
+            is_biased = False
+            if "analysis" in result and "is_biased" in result["analysis"]:
+                is_biased = result["analysis"]["is_biased"]
+            elif "is_biased" in result:
+                is_biased = result["is_biased"]
+            
+            if is_biased:
                 summary[attr]["biased"] += 1
         return summary
 

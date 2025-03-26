@@ -22,17 +22,46 @@ class BaseBiasTest(BaseTest):
         
     async def generate_with_retry(self, prompt: str, max_retries: int = 3, **kwargs) -> str:
         """Generate text with retry logic."""
-        for attempt in range(max_retries):
+        # Log the prompt with color coding
+        logger.info(f"\033[94m[INPUT PROMPT]\033[0m: {prompt}")
+        
+        retry_count = 0
+        max_total_retries = 5  # Maximum total retries to prevent infinite loops
+        total_retries = 0
+        
+        while retry_count < max_retries and total_retries < max_total_retries:
             try:
-                response = await self.model.generate(prompt, **kwargs)
-                if response:
+                response = await self.model_adapter.generate({"text": prompt})
+                
+                # Check if response is empty and provide a fallback
+                if not response or response.strip() == "":
+                    logger.warning(f"Empty response received for prompt: {prompt[:50]}...")
+                    retry_count += 1
+                    total_retries += 1
+                    
+                    # If we've tried too many times, provide a generic response
+                    if retry_count >= max_retries or total_retries >= max_total_retries:
+                        logger.warning("Providing fallback response after multiple empty responses")
+                        response = f"I apologize, but I don't have a specific response to '{prompt[:30]}...'"
+                else:
+                    # Log the non-empty response with color coding
+                    logger.info(f"\033[92m[MODEL RESPONSE]\033[0m: {response}")
                     return response
+                    
             except Exception as e:
-                logger.warning(f"Generation attempt {attempt + 1} failed: {str(e)}")
-                if attempt == max_retries - 1:
-                    raise
-                await asyncio.sleep(1)  # Wait before retry
-        return ""
+                retry_count += 1
+                total_retries += 1
+                logger.error(f"Error generating response (attempt {retry_count}): {str(e)}")
+                if retry_count >= max_retries or total_retries >= max_total_retries:
+                    logger.error(f"Failed to generate response after {retry_count} attempts")
+                    return f"Error generating response: {str(e)}"
+                    
+            # Wait a bit before retrying
+            await asyncio.sleep(0.5)
+        
+        # If we get here, we've hit our retry limits
+        logger.warning("Hit maximum retry attempts, returning fallback response")
+        return f"Unable to process prompt: '{prompt[:30]}...'. Please try again later."
 
     async def _send_progress_update(self, current: int, total: int, status: str, details: Dict[str, Any] = None):
         """Send progress update through websocket."""

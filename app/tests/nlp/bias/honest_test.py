@@ -28,6 +28,15 @@ class HONESTTest(BaseBiasTest):
         self.report_toxicity = config.get("advanced_parameters", {}).get("report_toxicity", True)
         self.use_enhanced_evaluation = config.get("advanced_parameters", {}).get("use_enhanced_evaluation", True)
 
+    async def run_test(self, model_adapter, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Run the HONEST bias test with the given model adapter and parameters."""
+        # Store the model adapter and parameters for use in _run_test_implementation
+        self.model_adapter = model_adapter
+        self.model_params = model_parameters
+        
+        # Call the implementation
+        return await self._run_test_implementation(model_parameters)
+
     async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
         Run the HONEST bias test implementation.
@@ -37,10 +46,14 @@ class HONESTTest(BaseBiasTest):
             
             # Get test data
             test_data = self.data_provider.get_test_data(self.test_type, self.max_samples)
-            self.logger.info(f"Retrieved {len(test_data)} test cases")
             
-            await self._send_progress_update(0, len(test_data), "processing", {
-                "message": f"Retrieved {len(test_data)} test cases to process"
+            # Handle case where test_data is already a list
+            test_cases = test_data if isinstance(test_data, list) else test_data.get('test_cases', [])
+            
+            self.logger.info(f"Retrieved {len(test_cases)} test cases")
+            
+            await self._send_progress_update(0, len(test_cases), "processing", {
+                "message": f"Retrieved {len(test_cases)} test cases to process"
             })
             
             results = []
@@ -49,17 +62,22 @@ class HONESTTest(BaseBiasTest):
             sentiment_scores = []
             
             # Process each test case
-            for i, test_case in enumerate(test_data):
+            for i, test_case in enumerate(test_cases):
                 current_progress = i + 1
                 await self._send_progress_update(
                     current_progress,
-                    len(test_data),
+                    len(test_cases),
                     "processing",
-                    {"message": f"Processing test case {current_progress}/{len(test_data)}"}
+                    {"message": f"Processing test case {current_progress}/{len(test_cases)}"}
                 )
                 
-                prompt = test_case["prompt"]
-                expected_attributes = test_case.get("expected_attributes", {})
+                # Handle case where test_case is a string instead of a dictionary
+                if isinstance(test_case, str):
+                    prompt = test_case
+                    expected_attributes = {}
+                else:
+                    prompt = test_case["prompt"]
+                    expected_attributes = test_case.get("expected_attributes", {})
                 
                 self.logger.info(f"Prompt: {prompt}")
                 
@@ -87,7 +105,7 @@ class HONESTTest(BaseBiasTest):
                     issues_found += 1
                     await self._send_progress_update(
                         current_progress,
-                        len(test_data),
+                        len(test_cases),
                         "issue_found",
                         {
                             "message": f"Found bias in test case {current_progress}",
@@ -244,6 +262,7 @@ class HONESTTest(BaseBiasTest):
             analysis.update({
                 "is_biased": fairness_score < threshold,
                 "fairness_score": fairness_score,
+                "bias_score": 1.0 - fairness_score,
                 "bias_types": self._identify_bias_types(
                     stereotype_score,
                     toxicity_score,
@@ -257,11 +276,27 @@ class HONESTTest(BaseBiasTest):
                 )
             })
             
+            # Log the analysis results with color coding
+            bias_status = "\033[91mBIASED\033[0m" if analysis["is_biased"] else "\033[92mUNBIASED\033[0m"
+            self.logger.info(f"\033[93m[ANALYSIS RESULT]\033[0m: {bias_status} - Score: {fairness_score:.2f}")
+            self.logger.info(f"\033[93m[BIAS METRICS]\033[0m: Stereotype: {stereotype_score:.2f}, Toxicity: {toxicity_score:.2f}, Sentiment: {sentiment_score:.2f}")
+            
+            return analysis
+            
         except Exception as e:
-            self.logger.error(f"Error in response analysis: {str(e)}")
-            analysis["explanation"] = f"Error in analysis: {str(e)}"
-        
-        return analysis
+            self.logger.error(f"Error analyzing response: {str(e)}")
+            self.logger.exception(e)
+            
+            # Set default values for error case
+            analysis.update({
+                "is_biased": True,
+                "fairness_score": 0.0,
+                "bias_score": 1.0,
+                "bias_types": ["error"],
+                "explanation": f"Error during analysis: {str(e)}"
+            })
+            
+            return analysis
     
     async def _check_stereotypes(self, response: str, expected_attributes: Dict[str, Any]) -> float:
         """
@@ -326,17 +361,25 @@ class HONESTTest(BaseBiasTest):
         Check for toxic content in the response using the BiasEvaluator.
         Returns a score between 0 (highly toxic) and 1 (non-toxic).
         """
-        # Use the existing toxicity classifier from BiasEvaluator
-        toxicity_score = self.evaluator.get_toxicity_score(response)
-        # Convert to our scale (BiasEvaluator returns higher score for more toxic content)
-        return 1.0 - toxicity_score
+        try:
+            # Use the toxicity classifier from the evaluator
+            toxicity_score = self.evaluator.get_toxicity_score(response)
+            # Convert to our scale (BiasEvaluator returns higher score for more toxic content)
+            return 1.0 - toxicity_score
+        except Exception as e:
+            self.logger.error(f"Error in toxicity check: {str(e)}")
+            return 0.5  # Default to neutral score on error
     
     async def _analyze_sentiment(self, response: str) -> float:
         """
         Analyze sentiment of the response.
         Returns a score between -1 (negative) and 1 (positive).
         """
-        return self.evaluator.get_sentiment_score(response)
+        try:
+            return self.evaluator.get_sentiment_score(response)
+        except Exception as e:
+            self.logger.error(f"Error in sentiment analysis: {str(e)}")
+            return 0.0  # Default to neutral sentiment on error
     
     async def _check_demographic_bias(self, response: str) -> Dict[str, Any]:
         """

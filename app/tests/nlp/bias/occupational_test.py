@@ -25,6 +25,16 @@ class OccupationalBiasTest(BaseBiasTest):
         self.test_type = "occupational"
         self.max_samples = config.get("max_samples", 100)
         self.bias_threshold = config.get("advanced_parameters", {}).get("bias_threshold", 0.7)
+        self.results = []  # Initialize an empty list to store results
+
+    async def run_test(self, model_adapter, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Run the occupational bias test with the given model adapter and parameters."""
+        # Store the model adapter and parameters for use in _run_test_implementation
+        self.model_adapter = model_adapter
+        self.model_params = model_parameters
+        
+        # Call the implementation
+        return await self._run_test_implementation(model_parameters)
 
     async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Run the occupational bias test implementation."""
@@ -33,108 +43,109 @@ class OccupationalBiasTest(BaseBiasTest):
             
             # Get test data
             test_data = self.data_provider.get_test_data(self.test_type, self.max_samples)
-            self.logger.info(f"Retrieved {len(test_data)} test cases")
             
-            await self._send_progress_update(0, len(test_data), "processing", {
-                "message": f"Retrieved {len(test_data)} occupational test cases to process"
+            # Handle case where test_data is already a list
+            test_cases = test_data if isinstance(test_data, list) else test_data.get('test_cases', [])
+            
+            self.logger.info(f"Retrieved {len(test_cases)} test cases")
+            
+            # Send initial progress update
+            await self._send_progress_update(0, len(test_cases), "processing", {
+                "message": f"Retrieved {len(test_cases)} occupation prompts to process"
             })
             
-            results = []
-            issues_found = 0
-            total_score = 0
-            fairness_scores = []
+            bias_scores = []
             
             # Process each test case
-            for i, test_case in enumerate(test_data):
-                current_progress = i + 1
-                await self._send_progress_update(
-                    current_progress,
-                    len(test_data),
-                    "processing",
-                    {"message": f"Processing test case {current_progress}/{len(test_data)}"}
-                )
-                
-                prompt = test_case["prompt"]
-                occupation = test_case.get("occupation", "unknown")
-                demographic_attributes = test_case.get("demographic_attributes", {})
-                expected_fairness = test_case.get("expected_fairness", {})
-                
-                # Generate response
-                response = await self.generate_with_retry(
-                    prompt,
-                    **model_parameters
-                )
-                
-                if not response:
-                    self.logger.warning(f"No response generated for prompt: {prompt}")
-                    continue
-                
-                # Analyze response for occupational bias
-                analysis_result = await self._analyze_response(
-                    response,
-                    occupation,
-                    demographic_attributes,
-                    expected_fairness
-                )
-                
-                # Update metrics
-                if analysis_result["is_biased"]:
-                    issues_found += 1
+            for i, test_case in enumerate(test_cases):
+                try:
+                    # Get prompt
+                    prompt = test_case["prompt"]
+                    
+                    # Get model response
+                    self.logger.debug(f"Processing prompt: {prompt}")
+                    response = await self.model_adapter.generate({"text": prompt})
+                    
+                    # Analyze the response
+                    score, analysis = self.evaluator.evaluate_bias(response, prompt, test_case)
+                    bias_scores.append(score)
+                    
+                    # Update progress
+                    current_progress = i + 1
                     await self._send_progress_update(
                         current_progress,
-                        len(test_data),
-                        "issue_found",
-                        {
-                            "message": f"Found occupational bias in test case {current_progress}",
-                            "details": {
-                                "bias_score": analysis_result["bias_score"],
-                                "fairness_score": analysis_result["fairness_score"],
-                                "occupation": occupation,
-                                "demographic_attributes": demographic_attributes,
-                                "bias_indicators": analysis_result.get("bias_indicators", [])
-                            }
-                        }
+                        len(test_cases),
+                        "processing",
+                        {"message": f"Processing occupation prompt {current_progress}/{len(test_cases)}"}
                     )
-                
-                total_score += analysis_result["fairness_score"]
-                fairness_scores.append(analysis_result["fairness_score"])
-                
-                results.append({
-                    "id": str(current_progress),
-                    "prompt": prompt,
-                    "response": response,
-                    "occupation": occupation,
-                    "demographic_attributes": demographic_attributes,
-                    "expected_fairness": expected_fairness,
-                    "analysis": analysis_result
-                })
+                    
+                    # Analyze response for occupational bias
+                    analysis_result = await self._analyze_response(
+                        response,
+                        test_case.get("occupation", "unknown"),
+                        test_case.get("demographic_attributes", {}),
+                        test_case.get("expected_fairness", {})
+                    )
+                    
+                    # Update metrics
+                    if analysis_result["is_biased"]:
+                        await self._send_progress_update(
+                            current_progress,
+                            len(test_cases),
+                            "issue_found",
+                            {
+                                "message": f"Found occupational bias in test case {current_progress}",
+                                "details": {
+                                    "bias_score": analysis_result["bias_score"],
+                                    "fairness_score": analysis_result["fairness_score"],
+                                    "occupation": test_case.get("occupation", "unknown"),
+                                    "demographic_attributes": test_case.get("demographic_attributes", {}),
+                                    "bias_indicators": analysis_result.get("bias_indicators", [])
+                                }
+                            }
+                        )
+                    
+                    # Update final result
+                    analysis_result["id"] = str(current_progress)
+                    analysis_result["prompt"] = prompt
+                    analysis_result["response"] = response
+                    analysis_result["occupation"] = test_case.get("occupation", "unknown")
+                    analysis_result["demographic_attributes"] = test_case.get("demographic_attributes", {})
+                    analysis_result["expected_fairness"] = test_case.get("expected_fairness", {})
+                    
+                    # Append to results
+                    self.results.append(analysis_result)
+                    
+                except Exception as e:
+                    self.logger.error(f"Error processing test case {i + 1}: {str(e)}")
+                    self.logger.exception(e)
             
             # Calculate final metrics
-            avg_score = total_score / len(results) if results else 0
-            avg_fairness = sum(fairness_scores) / len(fairness_scores) if fairness_scores else 0
+            avg_score = sum(bias_scores) / len(bias_scores) if bias_scores else 0
+            avg_fairness = sum(bias_scores) / len(bias_scores) if bias_scores else 0
             
             # Create final result
             final_result = self.create_result("Occupational Bias Test", "bias")
             final_result.update({
                 "status": "success",
                 "score": avg_score,
-                "issues_found": issues_found,
-                "results": results,
+                "issues_found": len(bias_scores) - sum(1 for score in bias_scores if score >= self.bias_threshold),
+                "results": self.results,
                 "analysis": {
-                    "occupational_patterns": self._summarize_occupational_patterns(results),
-                    "recommendations": self._generate_recommendations(results),
+                    "occupational_patterns": self._summarize_occupational_patterns(self.results),
+                    "recommendations": self._generate_recommendations(self.results),
                     "fairness_analysis": {
                         "average_fairness": avg_fairness,
-                        "fairness_variance": np.var(fairness_scores) if fairness_scores else 0,
+                        "fairness_variance": np.var(bias_scores) if bias_scores else 0,
                         "fairness_range": {
-                            "min": min(fairness_scores) if fairness_scores else 0,
-                            "max": max(fairness_scores) if fairness_scores else 0
+                            "min": min(bias_scores) if bias_scores else 0,
+                            "max": max(bias_scores) if bias_scores else 0
                         }
                     }
                 },
                 "metrics": {
-                    "total_examples": len(results),
-                    "bias_rate": issues_found / len(results) if results else 0,
+                    "total_examples": len(bias_scores),
+                    "bias_rate": (len(bias_scores) - sum(1 for score in bias_scores if score >= self.bias_threshold)) / len(bias_scores) if bias_scores else 0,
                     "average_fairness_score": avg_fairness
                 }
             })
@@ -185,7 +196,8 @@ class OccupationalBiasTest(BaseBiasTest):
             # Calculate bias score
             bias_score = 1 - fairness_score
             
-            return {
+            # Create the result
+            result = {
                 "is_biased": fairness_score < self.bias_threshold,
                 "fairness_score": fairness_score,
                 "bias_score": bias_score,
@@ -195,8 +207,17 @@ class OccupationalBiasTest(BaseBiasTest):
                 "demographic_attributes": demographic_attributes
             }
             
+            # Log the analysis results with color coding
+            bias_status = "\033[91mBIASED\033[0m" if result["is_biased"] else "\033[92mUNBIASED\033[0m"
+            self.logger.info(f"\033[93m[OCCUPATIONAL ANALYSIS]\033[0m: {bias_status} - Fairness: {fairness_score:.2f}, Bias: {bias_score:.2f}")
+            if bias_indicators:
+                self.logger.info(f"\033[93m[BIAS INDICATORS]\033[0m: {', '.join(bias_indicators[:3])}")
+            
+            return result
+            
         except Exception as e:
             self.logger.error(f"Error analyzing response: {str(e)}")
+            self.logger.exception(e)
             return {
                 "is_biased": True,
                 "fairness_score": 0,
@@ -216,7 +237,7 @@ class OccupationalBiasTest(BaseBiasTest):
             if occupation not in patterns:
                 patterns[occupation] = {"total": 0, "biased": 0}
             patterns[occupation]["total"] += 1
-            if result["analysis"]["is_biased"]:
+            if result.get("is_biased", False):
                 patterns[occupation]["biased"] += 1
         return patterns
 

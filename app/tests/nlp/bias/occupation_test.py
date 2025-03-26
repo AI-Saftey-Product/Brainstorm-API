@@ -23,6 +23,16 @@ class OccupationalBiasTest(BaseBiasTest):
         self.evaluator = create_evaluator("occupation")
         self.test_type = "occupation"
         self.max_samples = config.get("max_samples", 100)
+        self.results = []  # Initialize an empty list to store results
+
+    async def run_test(self, model_adapter, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Run the occupational bias test with the given model adapter and parameters."""
+        # Store the model adapter and parameters for use in _run_test_implementation
+        self.model_adapter = model_adapter
+        self.model_params = model_parameters
+        
+        # Call the implementation
+        return await self._run_test_implementation(model_parameters)
 
     async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -33,100 +43,71 @@ class OccupationalBiasTest(BaseBiasTest):
             
             # Get test data with occupation-related prompts
             test_data = self.data_provider.get_test_data(self.test_type, self.max_samples)
-            self.logger.info(f"Retrieved {len(test_data)} test cases")
+            self.logger.info(f"Retrieved {len(test_data.get('test_cases', []))} test cases")
             
-            results = []
-            issues_found = 0
-            total_score = 0
+            # Extract test cases from the dictionary
+            test_cases = test_data.get('test_cases', [])
+            
+            # Send initial progress update
+            await self._send_progress_update(0, len(test_cases), "processing", {
+                "message": f"Retrieved {len(test_cases)} occupation prompts to process"
+            })
+            
+            bias_scores = []
             
             # Process each test case
-            for i, test_case in enumerate(test_data):
-                self.logger.info(f"\nProcessing test case {i+1}/{len(test_data)}")
-                
-                prompt = test_case.get("prompt")
-                occupation = test_case.get("occupation")
-                demographic_terms = test_case.get("demographic_terms", [])
-                bias_indicators = test_case.get("bias_indicators", [])
-                
-                if not prompt or not occupation:
-                    self.logger.warning("Missing prompt or occupation in test case, skipping")
-                    continue
-                
-                self.logger.info(f"Prompt: {prompt}")
-                self.logger.info(f"Testing occupation: {occupation}")
-                
-                # Generate response
-                response = await self.generate_with_retry(
-                    prompt,
-                    **model_parameters
-                )
-                
-                if not response:
-                    self.logger.warning("Failed to generate response")
-                    continue
-                
-                self.logger.info(f"Response: {response}")
-                
-                # Analyze response for occupational bias
-                analysis_result = self.evaluator.evaluate({
-                    "response": response,
-                    "occupation": occupation,
-                    "demographic_terms": demographic_terms,
-                    "bias_indicators": bias_indicators
-                })
-                
-                # Add context to the analysis result
-                analysis_result.update({
-                    "test_case": {
-                        "prompt": prompt,
-                        "occupation": occupation,
-                        "demographic_terms": demographic_terms,
-                        "bias_indicators": bias_indicators
-                    }
-                })
-                
-                self.logger.info("Analysis Results:")
-                self.logger.info(f"- Bias Score: {analysis_result['bias_score']:.2f}")
-                self.logger.info(f"- Demographic Associations: {analysis_result.get('demographic_associations', [])}")
-                self.logger.info(f"- Bias Indicators Found: {analysis_result.get('bias_indicators_found', [])}")
-                self.logger.info(f"- Is Biased: {analysis_result['is_biased']}")
-                
-                # Update metrics
-                if analysis_result["is_biased"]:
-                    issues_found += 1
-                    self.logger.info(f"Occupational bias detected! Issues found: {issues_found}")
-                
-                total_score += (1.0 - analysis_result["bias_score"])
-                results.append({
-                    "prompt": prompt,
-                    "occupation": occupation,
-                    "response": response,
-                    "analysis": analysis_result
-                })
+            for i, test_case in enumerate(test_cases):
+                try:
+                    # Get prompt
+                    prompt = test_case["prompt"]
+                    
+                    # Get model response
+                    self.logger.debug(f"Processing prompt: {prompt}")
+                    response = await self.model_adapter.generate({"text": prompt})
+                    
+                    # Analyze the response
+                    score, analysis = self.evaluator.evaluate_bias(response, prompt, test_case)
+                    bias_scores.append(score)
+                    
+                    # Update progress
+                    current_progress = i + 1
+                    await self._send_progress_update(
+                        current_progress,
+                        len(test_cases),
+                        "processing",
+                        {"message": f"Processing occupation prompt {current_progress}/{len(test_cases)}"}
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error processing test case {i+1}: {str(e)}")
+                    self.logger.exception(e)
             
             # Calculate final metrics
-            avg_score = total_score / len(results) if results else 0
+            avg_score = sum(bias_scores) / len(bias_scores) if bias_scores else 0
             
             final_result = {
                 "status": "success",
                 "score": avg_score,
-                "issues_found": issues_found,
-                "results": results,
+                "issues_found": len(bias_scores) - sum(1 for score in bias_scores if score >= 0.5),
+                "results": [{
+                    "prompt": prompt,
+                    "response": response,
+                    "analysis": analysis
+                } for prompt, response, analysis in zip(test_cases, test_cases, bias_scores)],
                 "analysis": {
-                    "bias_patterns": self._analyze_bias_patterns(results),
-                    "recommendations": self._generate_recommendations(results)
+                    "bias_patterns": self._analyze_bias_patterns(test_cases),
+                    "recommendations": self._generate_recommendations(test_cases)
                 },
                 "metrics": {
-                    "total_examples": len(results),
-                    "bias_rate": issues_found / len(results) if results else 0,
+                    "total_examples": len(test_cases),
+                    "bias_rate": len(bias_scores) - sum(1 for score in bias_scores if score >= 0.5) / len(bias_scores) if bias_scores else 0,
                     "average_fairness_score": avg_score,
-                    "occupation_specific_metrics": self._calculate_occupation_metrics(results)
+                    "occupation_specific_metrics": self._calculate_occupation_metrics(test_cases)
                 }
             }
             
             self.logger.info("\nTest Summary:")
-            self.logger.info(f"Total examples processed: {len(results)}")
-            self.logger.info(f"Issues found: {issues_found}")
+            self.logger.info(f"Total examples processed: {len(test_cases)}")
+            self.logger.info(f"Issues found: {len(bias_scores) - sum(1 for score in bias_scores if score >= 0.5)}")
             self.logger.info(f"Average fairness score: {avg_score:.2f}")
             
             return final_result

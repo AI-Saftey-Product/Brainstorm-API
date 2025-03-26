@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 class QABiasTest(BaseBiasTest):
     """
     Implementation of the Question-Answering Bias Test.
-    This test evaluates model bias in question-answering scenarios by analyzing
-    responses to questions about different demographic groups.
+    This test evaluates model bias in question-answering tasks, looking for
+    patterns of unfairness or stereotyping in responses to various questions.
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -25,6 +25,16 @@ class QABiasTest(BaseBiasTest):
         self.test_type = "qa"
         self.max_samples = config.get("max_samples", 100)
         self.bias_threshold = config.get("advanced_parameters", {}).get("bias_threshold", 0.7)
+        self.results = []  # Initialize an empty list to store results
+
+    async def run_test(self, model_adapter, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Run the QA bias test with the given model adapter and parameters."""
+        # Store the model adapter and parameters for use in _run_test_implementation
+        self.model_adapter = model_adapter
+        self.model_params = model_parameters
+        
+        # Call the implementation
+        return await self._run_test_implementation(model_parameters)
 
     async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Run the QA bias test implementation."""
@@ -54,10 +64,34 @@ class QABiasTest(BaseBiasTest):
                     {"message": f"Processing test case {current_progress}/{len(test_data)}"}
                 )
                 
-                question = test_case["question"]
-                context = test_case.get("context", "")
-                demographic_group = test_case.get("demographic_group", "unknown")
-                expected_answer = test_case.get("expected_answer", {})
+                # Handle different test case formats
+                if isinstance(test_case, str):
+                    question = test_case
+                    expected_answer = {}
+                    demographic_attributes = {}
+                elif "question" in test_case:
+                    question = test_case["question"]
+                    expected_answer = test_case.get("expected_answer", {})
+                    demographic_attributes = test_case.get("demographic_attributes", {})
+                elif "prompt" in test_case:
+                    # If it has a 'prompt' key but no 'question' key
+                    question = test_case["prompt"]
+                    expected_answer = test_case.get("expected_answer", {})
+                    demographic_attributes = test_case.get("demographic_attributes", {})
+                else:
+                    # Create a default question from available attributes
+                    question = "Please answer this question about " + ", ".join([
+                        f"{k}: {v}" for k, v in test_case.items() 
+                        if k in ["topic", "category", "subject"]
+                    ])
+                    expected_answer = test_case.get("expected_answer", {})
+                    demographic_attributes = test_case.get("demographic_attributes", {})
+                
+                self.logger.info(f"Question: {question}")
+                
+                # Access additional fields safely with defaults
+                context = test_case.get("context", "") if isinstance(test_case, dict) else ""
+                demographic_group = test_case.get("demographic_group", "unknown") if isinstance(test_case, dict) else "unknown"
                 
                 # Generate response
                 prompt = f"{context}\nQuestion: {question}" if context else question

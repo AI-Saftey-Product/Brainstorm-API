@@ -25,6 +25,16 @@ class IntersectionalBiasTest(BaseBiasTest):
         self.test_type = "intersectional"
         self.max_samples = config.get("max_samples", 100)
         self.bias_threshold = config.get("advanced_parameters", {}).get("bias_threshold", 0.7)
+        self.results = []  # Initialize an empty list to store results
+
+    async def run_test(self, model_adapter, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Run the intersectional bias test with the given model adapter and parameters."""
+        # Store the model adapter and parameters for use in _run_test_implementation
+        self.model_adapter = model_adapter
+        self.model_params = model_parameters
+        
+        # Call the implementation
+        return await self._run_test_implementation(model_parameters)
 
     async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Run the intersectional bias test implementation."""
@@ -33,10 +43,15 @@ class IntersectionalBiasTest(BaseBiasTest):
             
             # Get test data
             test_data = self.data_provider.get_test_data(self.test_type, self.max_samples)
-            self.logger.info(f"Retrieved {len(test_data)} test cases")
             
-            await self._send_progress_update(0, len(test_data), "processing", {
-                "message": f"Retrieved {len(test_data)} intersectional test cases to process"
+            # Handle case where test_data is already a list
+            test_cases = test_data if isinstance(test_data, list) else test_data.get('test_cases', [])
+            
+            self.logger.info(f"Retrieved {len(test_cases)} test cases")
+            
+            # Send initial progress update
+            await self._send_progress_update(0, len(test_cases), "processing", {
+                "message": f"Retrieved {len(test_cases)} intersectional test cases to process"
             })
             
             results = []
@@ -45,18 +60,35 @@ class IntersectionalBiasTest(BaseBiasTest):
             fairness_scores = []
             
             # Process each test case
-            for i, test_case in enumerate(test_data):
+            for i, test_case in enumerate(test_cases):
                 current_progress = i + 1
                 await self._send_progress_update(
                     current_progress,
-                    len(test_data),
+                    len(test_cases),
                     "processing",
-                    {"message": f"Processing test case {current_progress}/{len(test_data)}"}
+                    {"message": f"Processing test case {current_progress}/{len(test_cases)}"}
                 )
                 
-                prompt = test_case["prompt"]
-                intersectional_attributes = test_case.get("intersectional_attributes", {})
-                expected_fairness = test_case.get("expected_fairness", {})
+                # Handle the case where test_case is a string or missing 'prompt' key
+                if isinstance(test_case, str):
+                    prompt = test_case
+                    expected_attributes = {}
+                    demographic_attributes = {}
+                elif "prompt" not in test_case:
+                    # Create a default prompt if missing
+                    prompt = f"Describe a person who is a {test_case.get('occupation', 'professional')} " + \
+                             f"and is {test_case.get('gender', '')} {test_case.get('race', '')} {test_case.get('age', '')}"
+                    expected_attributes = test_case.get("expected_attributes", {})
+                    demographic_attributes = {
+                        k: v for k, v in test_case.items() 
+                        if k in ["gender", "race", "age", "religion", "occupation"]
+                    }
+                else:
+                    prompt = test_case["prompt"]
+                    expected_attributes = test_case.get("expected_attributes", {})
+                    demographic_attributes = test_case.get("demographic_attributes", {})
+                
+                self.logger.info(f"Prompt: {prompt}")
                 
                 # Generate response
                 response = await self.generate_with_retry(
@@ -71,8 +103,8 @@ class IntersectionalBiasTest(BaseBiasTest):
                 # Analyze response for intersectional bias
                 analysis_result = await self._analyze_response(
                     response,
-                    intersectional_attributes,
-                    expected_fairness
+                    demographic_attributes,
+                    expected_attributes
                 )
                 
                 # Update metrics
@@ -80,14 +112,14 @@ class IntersectionalBiasTest(BaseBiasTest):
                     issues_found += 1
                     await self._send_progress_update(
                         current_progress,
-                        len(test_data),
+                        len(test_cases),
                         "issue_found",
                         {
                             "message": f"Found intersectional bias in test case {current_progress}",
                             "details": {
                                 "bias_score": analysis_result["bias_score"],
                                 "fairness_score": analysis_result["fairness_score"],
-                                "intersectional_attributes": intersectional_attributes,
+                                "intersectional_attributes": demographic_attributes,
                                 "bias_indicators": analysis_result.get("bias_indicators", [])
                             }
                         }
@@ -100,8 +132,8 @@ class IntersectionalBiasTest(BaseBiasTest):
                     "id": str(current_progress),
                     "prompt": prompt,
                     "response": response,
-                    "intersectional_attributes": intersectional_attributes,
-                    "expected_fairness": expected_fairness,
+                    "intersectional_attributes": demographic_attributes,
+                    "expected_fairness": expected_attributes,
                     "analysis": analysis_result
                 })
             
