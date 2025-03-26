@@ -105,8 +105,42 @@ async def create_test_run(
 ):
     """
     Create a new test run.
+    
+    Expects a request body with the following structure:
+    ```json
+    {
+      "test_run_id": "uuid-from-websocket-connection",
+      "test_ids": ["prompt_injection_test"],
+      "model_settings": {
+        "model_id": "gpt2",
+        "modality": "NLP",
+        "sub_type": "Text Generation", 
+        "source": "huggingface",
+        "api_key": "your-api-key"
+      },
+      "parameters": {
+        "prompt_injection_test": {
+          "max_samples": 100
+        }
+      }
+    }
+    ```
+    
+    - `test_run_id`: Required field containing the UUID received from WebSocket connection
+    - `test_ids`: Required array of test IDs to run
+    - `model_settings`: Required object with model configuration
+      - `model_id`: Required field identifying the model
+      - Other fields are optional but recommended
+    - `parameters`: Optional object with test-specific parameters
+    
+    Important: You MUST connect to the WebSocket endpoint at `/ws/tests` first to obtain
+    a test_run_id, then provide that ID when creating a test run.
     """
     try:
+        # Check if test_run_id is provided
+        if not test_run_data.test_run_id:
+            raise ValueError("test_run_id is required. Connect to WebSocket endpoint at /ws/tests first to obtain an ID.")
+            
         test_run = await test_service.create_test_run(test_run_data)
         
         # Format the response with the expected structure for the frontend
@@ -276,4 +310,133 @@ async def debug_get_all_test_runs():
     return {
         "count": len(safe_runs),
         "test_runs": safe_runs
+    }
+
+
+@router.get("/debug/websocket/{test_run_id}")
+async def debug_websocket_connection(test_run_id: str):
+    """
+    Debug endpoint to test WebSocket connections.
+    Sends a test notification to all clients connected to a test run.
+    """
+    from app.core.websocket import manager as websocket_manager
+    from app.services.test_service import test_runs, serialize_datetime
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Debug WebSocket notification for test run {test_run_id}")
+    
+    # Check if the test run exists
+    test_run = test_runs.get(test_run_id)
+    test_run_info = "Test run exists" if test_run else "Test run does not exist"
+    
+    # Send a test notification
+    try:
+        await websocket_manager.send_notification(
+            test_run_id,
+            serialize_datetime({
+                "type": "debug_message",
+                "test_run_id": test_run_id,
+                "message": "This is a debug message from the API",
+                "test_run_info": test_run_info
+            })
+        )
+        return {
+            "success": True,
+            "message": "Debug notification sent",
+            "test_run_exists": test_run is not None,
+            "test_run_info": test_run_info
+        }
+    except Exception as e:
+        logger.error(f"Error sending debug notification: {str(e)}", exc_info=True)
+        return {
+            "success": False,
+            "error": str(e),
+            "test_run_exists": test_run is not None,
+            "test_run_info": test_run_info
+        }
+
+
+@router.get("/debug/run-status/{test_run_id}")
+async def debug_test_run_status(test_run_id: str):
+    """
+    Debug endpoint to check the status of a test run and its execution.
+    """
+    from app.services.test_service import test_runs, test_results
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Checking status for test run {test_run_id}")
+    
+    # Get test run
+    test_run = test_runs.get(test_run_id)
+    if not test_run:
+        return {
+            "exists": False,
+            "message": f"Test run {test_run_id} not found"
+        }
+    
+    # Get results for this test run
+    run_results = []
+    for result_id, result in test_results.items():
+        if result.get("test_run_id") == test_run_id:
+            run_results.append({
+                "id": result_id,
+                "test_id": result.get("test_id"),
+                "test_name": result.get("test_name"),
+                "status": result.get("status"),
+                "score": result.get("score"),
+                "created_at": str(result.get("created_at", ""))
+            })
+    
+    # Create a safe copy of the test run to avoid serialization issues
+    safe_run = {
+        "id": str(test_run.get("id", "")),
+        "target_id": str(test_run.get("target_id", "")),
+        "test_ids": test_run.get("test_ids", []),
+        "status": test_run.get("status", "unknown"),
+        "start_time": str(test_run.get("start_time", "")),
+        "end_time": str(test_run.get("end_time", "")),
+        "created_at": str(test_run.get("created_at", "")),
+        "updated_at": str(test_run.get("updated_at", "")),
+        "summary_results": test_run.get("summary_results", {})
+    }
+    
+    return {
+        "exists": True,
+        "test_run": safe_run,
+        "results_count": len(run_results),
+        "results": run_results
+    }
+
+
+@router.get("/debug/available-tests")
+async def debug_available_tests():
+    """
+    Debug endpoint to get all available test IDs and their details.
+    This helps developers see what test IDs are available for testing.
+    """
+    from app.test_registry import test_registry
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    # Get all available tests
+    tests = await test_service.get_available_tests()
+    
+    # Create a simplified list of test IDs with their details
+    test_list = []
+    for test_id, test_info in tests.items():
+        test_list.append({
+            "id": test_id,
+            "name": test_info.get("name", ""),
+            "category": test_info.get("category", ""),
+            "description": test_info.get("description", ""),
+            "compatible_modalities": test_info.get("compatible_modalities", []),
+            "compatible_sub_types": test_info.get("compatible_sub_types", [])
+        })
+    
+    return {
+        "count": len(test_list),
+        "tests": test_list
     } 

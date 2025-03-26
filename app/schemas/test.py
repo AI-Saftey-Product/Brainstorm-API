@@ -54,6 +54,7 @@ class TestRunCreate(BaseModel):
     test_ids: List[str]
     model_settings: Dict[str, Any]
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    test_run_id: Optional[str] = None
     
     @field_validator("model_settings")
     @classmethod

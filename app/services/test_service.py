@@ -1093,13 +1093,18 @@ async def create_test_run(test_run_data) -> Dict[str, Any]:
         # Get current time for timestamps
         current_time = datetime.utcnow()
         
-        # Create a new test run ID
-        run_id = uuid4()
-        logger.debug(f"Created test run ID: {run_id}")
+        # Use the provided test_run_id - must be provided
+        if hasattr(test_run_data, 'test_run_id') and test_run_data.test_run_id:
+            run_id = test_run_data.test_run_id
+            logger.debug(f"Using provided test run ID: {run_id}")
+        else:
+            # Return an error if no test_run_id is provided
+            logger.error("No test_run_id provided to create_test_run")
+            raise ValueError("A test_run_id must be provided for test execution. Connect to the WebSocket endpoint first.")
         
         # Create test run as a dictionary
         test_run = {
-            "id": str(run_id),  # Store as string
+            "id": run_id,  # Store as string
             "target_id": model_settings["model_id"],
             "test_ids": test_ids,
             "target_parameters": {
@@ -1115,7 +1120,7 @@ async def create_test_run(test_run_data) -> Dict[str, Any]:
         }
         
         # Store in our in-memory storage using string ID
-        test_runs[str(run_id)] = test_run
+        test_runs[run_id] = test_run
         logger.info(f"Created and stored test run with ID {run_id}")
         
         # Start test run asynchronously
@@ -1285,7 +1290,10 @@ async def run_tests(test_run_id: UUID) -> None:
     
     # Notify clients that the test run has started
     try:
-        logger.debug(f"Sending initial WebSocket notification for test run {test_run_id}")
+        logger.info(f"Attempting to send initial WebSocket notification for test run {test_run_id}")
+        logger.info(f"Current test run status: {test_run['status']}")
+        logger.info(f"Current test run summary: {test_run['summary_results']}")
+        
         await websocket_manager.send_notification(
             str(test_run_id), 
             serialize_datetime({
@@ -1296,8 +1304,11 @@ async def run_tests(test_run_id: UUID) -> None:
                 "summary": test_run["summary_results"]
             })
         )
+        logger.info(f"Successfully sent initial WebSocket notification for test run {test_run_id}")
     except Exception as e:
         logger.error(f"Failed to send WebSocket notification: {str(e)}", exc_info=True)
+        logger.error(f"Current test run status: {test_run['status']}")
+        logger.error(f"Current test run summary: {test_run['summary_results']}")
 
     try:
         # ===== INITIALIZATION PHASE =====

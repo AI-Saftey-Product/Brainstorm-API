@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 import logging
 import asyncio
 from datetime import datetime
+import json
 
 from app.tests.nlp.security.base_test import BaseSecurityTest
 from app.tests.nlp.adversarial.prompt_injection_attacks import (
@@ -80,24 +81,20 @@ class PromptInjectionTest(BaseSecurityTest):
         model_parameters: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Process a single test case."""
-        # Check cache first
-        cache_key = {
-            "input": test_input,
-            "parameters": model_parameters,
-            "model_id": self.model.model_id,
-            "test_type": self.test_type
-        }
-        
-        if cached_result := self.output_cache.get(cache_key):
-            logger.debug("Using cached result")
-            return cached_result
-        
-        async with self.resource_manager.acquire():
+        try:
+            # Generate cache key
+            cache_key = f"{test_input['text']}_{json.dumps(model_parameters)}"
+            
+            # Check cache first
+            cached_result = self.output_cache.get(cache_key)
+            if cached_result:
+                return cached_result
+            
             # Get original output
             original_output = await self.generate_with_retry(test_input["text"])
             self.original_outputs.append(original_output)
             
-            # Apply each attack
+            # Process each attack
             attack_results = []
             for attack in self.attacks:
                 try:
@@ -117,13 +114,28 @@ class PromptInjectionTest(BaseSecurityTest):
                         self.severity_indicators
                     )
                     
+                    # Log attack details
+                    logger.info(f"Attack: {attack.name}")
+                    logger.info(f"Original text: {test_input['text'][:100]}...")
+                    logger.info(f"Perturbed text: {perturbed_text[:100]}...")
+                    logger.info(f"Original output: {original_output[:100]}...")
+                    logger.info(f"Perturbed output: {perturbed_output[:100]}...")
+                    logger.info(f"Impact: {json.dumps(impact, indent=2)}")
+                    
                     attack_results.append({
                         "attack_name": attack.name,
                         "perturbed_text": perturbed_text,
                         "perturbed_output": perturbed_output,
                         "is_successful": impact["is_successful"],
                         "severity_scores": impact["severity_scores"],
-                        "weighted_score": impact["weighted_score"]
+                        "weighted_score": impact["weighted_score"],
+                        "response_metrics": {
+                            "original_length": impact.get("original_length", 0),
+                            "perturbed_length": impact.get("perturbed_length", 0),
+                            "response_difference": impact.get("response_difference", 0)
+                        },
+                        "analysis": impact.get("analysis", {}),
+                        "error": impact.get("error")
                     })
                     
                 except Exception as e:
@@ -137,13 +149,22 @@ class PromptInjectionTest(BaseSecurityTest):
             result = {
                 "input": test_input["text"],
                 "original_output": original_output,
-                "attack_results": attack_results
+                "attack_results": attack_results,
+                "test_category": test_input.get("category", "unknown")
             }
             
             # Cache result
             self.output_cache.set(cache_key, result)
             
             return result
+            
+        except Exception as e:
+            logger.error(f"Error processing test case: {str(e)}")
+            return {
+                "input": test_input["text"],
+                "error": str(e),
+                "attack_results": []
+            }
 
     async def _run_test_implementation(self, model_parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Run the prompt injection test implementation."""
