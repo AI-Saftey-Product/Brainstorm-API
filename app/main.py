@@ -30,18 +30,24 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Get CORS settings from environment variables
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
-allowed_methods = os.getenv("ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS").split(",")
-allowed_headers = os.getenv("ALLOWED_HEADERS", "Content-Type,Authorization,X-Requested-With").split(",")
-
-# Configure CORS
+# CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["https://aws-amplify.d1gdmj3u8tokdo.amplifyapp.com"],
     allow_credentials=True,
-    allow_methods=allowed_methods,
-    allow_headers=allowed_headers,
+    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+    allow_headers=[
+        "DNT",
+        "User-Agent",
+        "X-Requested-With",
+        "If-Modified-Since",
+        "Cache-Control",
+        "Content-Type",
+        "Range",
+        "Authorization"
+    ],
+    expose_headers=["Content-Length", "Content-Range"],
+    max_age=1728000,  # 20 days
 )
 
 # Include API router with version prefix
