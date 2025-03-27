@@ -1,7 +1,6 @@
 """Main application module."""
 import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Set
 import json
 from uuid import UUID, uuid4
@@ -22,33 +21,7 @@ logging.basicConfig(
 )
 
 # Create FastAPI app
-app = FastAPI(
-    title=settings.API_TITLE,
-    description=settings.API_DESCRIPTION,
-    version=settings.API_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
-
-# CORS middleware configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://aws-amplify.d1gdmj3u8tokdo.amplifyapp.com"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
-    allow_headers=[
-        "DNT",
-        "User-Agent",
-        "X-Requested-With",
-        "If-Modified-Since",
-        "Cache-Control",
-        "Content-Type",
-        "Range",
-        "Authorization"
-    ],
-    expose_headers=["Content-Length", "Content-Range"],
-    max_age=1728000,  # 20 days
-)
+app = FastAPI()
 
 # Include API router with version prefix
 app.include_router(api_router, prefix=f"/api/{settings.API_VERSION}")
