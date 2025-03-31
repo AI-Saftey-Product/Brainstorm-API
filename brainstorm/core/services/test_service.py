@@ -548,25 +548,42 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
         test_run["status"] = "completed"
         test_run["updated_at"] = datetime.utcnow().isoformat()
         
-        # Create a summary of the results
-        results_summary = []
-        for result in test_run.get("results", []):
-            if result.get("status") == "completed":
-                summary = {
-                    "test_id": result["test_id"],
-                    "test_name": result["test_name"],
-                    "test_category": result["test_category"],
-                    "status": result["status"],
-                    "score": result["result"].get("score", 0),
-                    "issues_found": result["result"].get("issues_found", 0),
-                    "vulnerability_score": result["result"].get("analysis", {}).get("vulnerability_score", 0),
-                    "total_tests": result["result"].get("metrics", {}).get("total_tests", 0),
-                    "successful_attacks": result["result"].get("metrics", {}).get("successful_attacks", 0),
-                    "total_time": result["result"].get("metrics", {}).get("total_time", 0)
-                }
-                results_summary.append(summary)
+        # Format results to match frontend expectations
+        formatted_results = {}
         
-        # Create completion message with summary
+        for result in test_run.get("results", []):
+            try:
+                if result.get("status") == "completed":
+                    test_id = result.get("test_id")
+                    if not test_id:
+                        logger.warning(f"Skipping result with missing test_id: {result}")
+                        continue
+                    
+                    # Extract test metadata
+                    test_info_from_registry = test_registry.get_test_info(test_id) or {}
+                    
+                    formatted_results[test_id] = {
+                        "test": {
+                            "id": test_id,
+                            "name": result.get("test_name", "Unknown Test"),
+                            "category": result.get("test_category", "unknown"),
+                            "description": test_info_from_registry.get("description", ""),
+                            "severity": test_info_from_registry.get("severity", "medium")
+                        },
+                        "result": {
+                            "pass": result.get("result", {}).get("issues_found", 0) == 0,
+                            "score": result.get("result", {}).get("score", 0),
+                            "message": f"Completed {result.get('test_name', 'test')} with score {result.get('result', {}).get('score', 0)}",
+                            "details": result.get("result", {}).get("analysis", {}),
+                            "issues_found": result.get("result", {}).get("issues_found", 0),
+                            "metrics": result.get("result", {}).get("metrics", {}),
+                            "timestamp": result.get("created_at", datetime.utcnow().isoformat())
+                        }
+                    }
+            except Exception as e:
+                logger.error(f"Error formatting result {result.get('test_id', 'unknown')}: {str(e)}")
+        
+        # Create completion message with formatted results
         completion_message = {
             "type": "test_complete",
             "test_run_id": test_run_id,
@@ -575,14 +592,14 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
                 "total_tests": test_run["total_tests"],
                 "completed_tests": test_run["completed_tests"],
                 "failed_tests": failed_tests,
-                "test_summary": results_summary
+                "test_results": formatted_results
             }
         }
         
-        # Send completion message with summary
+        # Send completion message with formatted results
         await websocket_manager.send_notification(test_run_id, completion_message)
         
-        logger.info(f"Completed test run {test_run_id} with {len(results_summary)} test summaries")
+        logger.info(f"Completed test run {test_run_id} with {len(formatted_results)} formatted test results")
         
         # Serialize the test run before returning
         serialized_test_run = _serialize_datetime(test_run)

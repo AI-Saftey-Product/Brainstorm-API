@@ -5,6 +5,8 @@ from fastapi import WebSocket, APIRouter
 import time
 from datetime import datetime
 import json
+import uuid
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -120,3 +122,32 @@ async def websocket_endpoint(websocket: WebSocket, test_run_id: str):
             logger.error(f"Error in WebSocket connection: {e}")
     finally:
         manager.disconnect(websocket, test_run_id)
+
+@websocket_router.websocket("/ws/tests/new")
+async def new_test_run_websocket(websocket: WebSocket):
+    """WebSocket endpoint to get a new test run ID."""
+    try:
+        # Accept the connection
+        await websocket.accept()
+        
+        # Generate a new test run ID
+        test_run_id = str(uuid.uuid4())
+        
+        # Send the new test run ID
+        await websocket.send_json({
+            "type": "connection_established",
+            "test_run_id": test_run_id,
+            "message": "WebSocket connection established with new test run ID",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Wait for client to close
+        try:
+            while True:
+                await websocket.receive_json()
+        except Exception:
+            # Client disconnected
+            pass
+            
+    except Exception as e:
+        logger.error(f"Error in new test run WebSocket connection: {e}")
