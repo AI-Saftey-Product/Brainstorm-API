@@ -65,12 +65,12 @@ class TestRegistry:
                 }
             },
             
-            # Robustness Tests - Character Level
-            "nlp_character_attack_test": {
-                "id": "nlp_character_attack_test",
+            # Adversarial Tests - Character Level
+            "character_attack_test": {
+                "id": "character_attack_test",
                 "name": "Character-Level Adversarial Test",
                 "description": "Tests model robustness against character-level adversarial attacks",
-                "category": "robustness",
+                "category": "adversarial",
                 "compatible_modalities": ["NLP"],
                 "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.CharacterLevelAttack",
@@ -80,12 +80,12 @@ class TestRegistry:
                 }
             },
             
-            # Robustness Tests - Word Level
-            "nlp_word_attack_test": {
-                "id": "nlp_word_attack_test",
+            # Adversarial Tests - Word Level
+            "word_attack_test": {
+                "id": "word_attack_test",
                 "name": "Word-Level Adversarial Test",
                 "description": "Tests model robustness against word-level adversarial attacks",
-                "category": "robustness",
+                "category": "adversarial",
                 "compatible_modalities": ["NLP"],
                 "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.WordLevelAttack",
@@ -95,12 +95,12 @@ class TestRegistry:
                 }
             },
             
-            # Robustness Tests - Sentence Level
-            "nlp_sentence_attack_test": {
-                "id": "nlp_sentence_attack_test",
+            # Adversarial Tests - Sentence Level
+            "sentence_attack_test": {
+                "id": "sentence_attack_test",
                 "name": "Sentence-Level Adversarial Test",
                 "description": "Tests model robustness against sentence-level adversarial attacks",
-                "category": "robustness",
+                "category": "adversarial",
                 "compatible_modalities": ["NLP"],
                 "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.SentenceLevelAttack",
@@ -110,24 +110,85 @@ class TestRegistry:
                 }
             },
             
-            # Robustness Tests - Advanced
-            "nlp_advanced_attack_test": {
-                "id": "nlp_advanced_attack_test",
-                "name": "Advanced Adversarial Test",
-                "description": "Tests model robustness against advanced adversarial attacks",
-                "category": "robustness",
+            # Adversarial Tests - Advanced
+            "textfooler_attack_test": {
+                "id": "textfooler_attack_test",
+                "name": "TextFooler Attack Test",
+                "description": "Tests model robustness against TextFooler attacks using contextualized embeddings",
+                "category": "adversarial",
                 "compatible_modalities": ["NLP"],
                 "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.TextFoolerAttack",
                 "default_config": {
-                    "attack_types": ["combined", "targeted"],
-                    "num_examples": 5
+                    "max_perturbations": 5,
+                    "similarity_threshold": 0.8,
+                    "use_pos_tagging": True
+                }
+            },
+            
+            "bert_attack_test": {
+                "id": "bert_attack_test",
+                "name": "BERT Attack Test",
+                "description": "Tests model robustness against BERT-based adversarial attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.BERTAttack",
+                "default_config": {
+                    "max_perturbations": 5,
+                    "mask_probability": 0.15,
+                    "use_context": True
+                }
+            },
+            
+            "neural_paraphrase_attack_test": {
+                "id": "neural_paraphrase_attack_test",
+                "name": "Neural Paraphrase Attack Test",
+                "description": "Tests model robustness against neural paraphrase-based attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.NeuralParaphraseAttack",
+                "default_config": {
+                    "max_paraphrases": 3,
+                    "similarity_threshold": 0.8,
+                    "use_beam_search": True
+                }
+            },
+            
+            "jailbreak_attack_test": {
+                "id": "jailbreak_attack_test",
+                "name": "Jailbreak Attack Test",
+                "description": "Tests model robustness against jailbreak attempts",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.JailbreakAttack",
+                "default_config": {
+                    "max_attempts": 5,
+                    "use_authority": True,
+                    "use_context": True
+                }
+            },
+            
+            "redteam_attack_test": {
+                "id": "redteam_attack_test",
+                "name": "Red Team Attack Test",
+                "description": "Tests model robustness against red team adversarial attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.RedTeamAttack",
+                "default_config": {
+                    "attack_types": ["authority", "misalignment", "context", "boundary"],
+                    "max_perturbations": 3,
+                    "use_all_techniques": True
                 }
             },
             
             # Robustness Tests - Optimized
-            "nlp_optimized_robustness_test": {
-                "id": "nlp_optimized_robustness_test",
+            "optimized_robustness_test": {
+                "id": "optimized_robustness_test",
                 "name": "Optimized Robustness Test",
                 "description": "Optimized test suite for model robustness evaluation",
                 "category": "robustness",
@@ -142,8 +203,8 @@ class TestRegistry:
             },
             
             # Bias Tests - Honest
-            "nlp_honest_test": {
-                "id": "nlp_honest_test",
+            "honest_test": {
+                "id": "honest_test",
                 "name": "Honest Bias Test",
                 "description": "Tests model for honest responses to bias-sensitive questions",
                 "category": "bias",
@@ -157,8 +218,8 @@ class TestRegistry:
             },
             
             # Bias Tests - CDA
-            "nlp_cda_test": {
-                "id": "nlp_cda_test",
+            "cda_test": {
+                "id": "cda_test",
                 "name": "Counterfactual Data Augmentation Bias Test",
                 "description": "Tests model bias using counterfactual data augmentation",
                 "category": "bias",
@@ -173,8 +234,8 @@ class TestRegistry:
             },
             
             # Bias Tests - Intersectional
-            "nlp_intersectional_test": {
-                "id": "nlp_intersectional_test",
+            "intersectional_test": {
+                "id": "intersectional_test",
                 "name": "Intersectional Bias Test",
                 "description": "Tests for intersectional biases across multiple demographic dimensions",
                 "category": "bias",
@@ -189,8 +250,8 @@ class TestRegistry:
             },
             
             # Bias Tests - Question Answering
-            "nlp_qa_test": {
-                "id": "nlp_qa_test",
+            "qa_bias_test": {
+                "id": "qa_bias_test",
                 "name": "Question-Answering Bias Test",
                 "description": "Tests for biases in question-answering behavior",
                 "category": "bias",
@@ -205,8 +266,8 @@ class TestRegistry:
             },
             
             # Bias Tests - Occupational
-            "nlp_occupational_test": {
-                "id": "nlp_occupational_test",
+            "occupational_test": {
+                "id": "occupational_test",
                 "name": "Occupational Bias Test",
                 "description": "Tests for gender and occupation-related biases",
                 "category": "bias",
@@ -221,8 +282,8 @@ class TestRegistry:
             },
             
             # Bias Tests - Multilingual
-            "nlp_multilingual_test": {
-                "id": "nlp_multilingual_test",
+            "multilingual_test": {
+                "id": "multilingual_test",
                 "name": "Multilingual Bias Test",
                 "description": "Tests for biases across different languages",
                 "category": "bias",
@@ -237,8 +298,8 @@ class TestRegistry:
             },
             
             # Bias Tests - CrowS-Pairs
-            "nlp_crows_pairs_test": {
-                "id": "nlp_crows_pairs_test",
+            "crows_pairs_test": {
+                "id": "crows_pairs_test",
                 "name": "CrowS-Pairs Bias Test",
                 "description": "Tests for stereotypical biases using CrowS-Pairs dataset",
                 "category": "bias",
@@ -247,55 +308,193 @@ class TestRegistry:
                 "test_class": "brainstorm.testing.modalities.nlp.bias.crows_pairs_test.CrowSPairsTest",
                 "default_config": {
                     "bias_types": ["gender", "race", "religion", "age", "disability"],
-                    "num_examples": 10,
-                    "evaluation_metrics": ["stereotype_score", "bias_score"]
+                    "num_examples": 10
                 }
             },
             
-            # Bias Tests - Intersect Bench
-            "nlp_intersect_bench_test": {
-                "id": "nlp_intersect_bench_test",
-                "name": "Intersect Bench Bias Test",
-                "description": "Tests for intersectional biases using Intersect Bench dataset",
-                "category": "bias",
+            # Adversarial Tests - Character Level
+            "typo_attack_test": {
+                "id": "typo_attack_test",
+                "name": "Typo Attack Test",
+                "description": "Tests model robustness against typo-based character perturbations",
+                "category": "adversarial",
                 "compatible_modalities": ["NLP"],
                 "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
-                "test_class": "brainstorm.testing.modalities.nlp.bias.intersect_bench_test.IntersectBenchTest",
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.TypoAttack",
                 "default_config": {
-                    "intersections": ["gender_race", "gender_age", "race_age"],
-                    "num_examples": 10,
-                    "evaluation_metrics": ["disparity_score", "fairness_gap"]
+                    "intensity": 0.1,
+                    "max_perturbations": 3,
+                    "preserve_word_boundaries": True
+                }
+            },
+            
+            "homoglyph_attack_test": {
+                "id": "homoglyph_attack_test",
+                "name": "Homoglyph Attack Test",
+                "description": "Tests model robustness against homoglyph-based character substitutions",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.HomoglyphAttack",
+                "default_config": {
+                    "intensity": 0.1,
+                    "max_perturbations": 3,
+                    "preserve_word_boundaries": True
+                }
+            },
+            
+            "punctuation_attack_test": {
+                "id": "punctuation_attack_test",
+                "name": "Punctuation Attack Test",
+                "description": "Tests model robustness against punctuation-based perturbations",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.PunctuationAttack",
+                "default_config": {
+                    "intensity": 0.1,
+                    "max_perturbations": 3,
+                    "preserve_word_boundaries": True
+                }
+            },
+            
+            "unicode_attack_test": {
+                "id": "unicode_attack_test",
+                "name": "Unicode Attack Test",
+                "description": "Tests model robustness against Unicode-based character perturbations",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.UnicodeAttack",
+                "default_config": {
+                    "intensity": 0.1,
+                    "max_perturbations": 3,
+                    "preserve_word_boundaries": True
+                }
+            },
+            
+            # Adversarial Tests - Word Level
+            "synonym_attack_test": {
+                "id": "synonym_attack_test",
+                "name": "Synonym Attack Test",
+                "description": "Tests model robustness against synonym-based word substitutions",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.SynonymAttack",
+                "default_config": {
+                    "intensity": 0.1,
+                    "max_perturbations": 3,
+                    "min_word_length": 4,
+                    "preserve_pos": True
+                }
+            },
+            
+            "word_scramble_attack_test": {
+                "id": "word_scramble_attack_test",
+                "name": "Word Scramble Attack Test",
+                "description": "Tests model robustness against scrambled word attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.WordScrambleAttack",
+                "default_config": {
+                    "intensity": 0.1,
+                    "max_perturbations": 3,
+                    "min_word_length": 4,
+                    "preserve_pos": True
+                }
+            },
+            
+            "word_insert_delete_attack_test": {
+                "id": "word_insert_delete_attack_test",
+                "name": "Word Insert/Delete Attack Test",
+                "description": "Tests model robustness against word insertion and deletion attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.WordInsertDeleteAttack",
+                "default_config": {
+                    "intensity": 0.1,
+                    "max_perturbations": 3,
+                    "min_word_length": 4,
+                    "preserve_pos": True,
+                    "insert_probability": 0.5
+                }
+            },
+            
+            # Adversarial Tests - Sentence Level
+            "distractor_sentence_attack_test": {
+                "id": "distractor_sentence_attack_test",
+                "name": "Distractor Sentence Attack Test",
+                "description": "Tests model robustness against distractor sentence attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.DistractorSentenceAttack",
+                "default_config": {
+                    "intensity": 0.5,
+                    "max_perturbations": 1,
+                    "preserve_meaning": True,
+                    "distractor_types": ["irrelevant", "contradictory", "confusing"]
+                }
+            },
+            
+            "sentence_shuffle_attack_test": {
+                "id": "sentence_shuffle_attack_test",
+                "name": "Sentence Shuffle Attack Test",
+                "description": "Tests model robustness against sentence reordering attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.SentenceShuffleAttack",
+                "default_config": {
+                    "intensity": 0.5,
+                    "max_perturbations": 1,
+                    "preserve_meaning": True
+                }
+            },
+            
+            "paraphrase_attack_test": {
+                "id": "paraphrase_attack_test",
+                "name": "Paraphrase Attack Test",
+                "description": "Tests model robustness against various paraphrase-based attacks",
+                "category": "adversarial",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.ParaphraseAttack",
+                "default_config": {
+                    "intensity": 0.5,
+                    "max_perturbations": 1,
+                    "preserve_meaning": True,
+                    "paraphrase_types": [
+                        "active_to_passive",
+                        "passive_to_active",
+                        "combine_sentences",
+                        "split_sentence",
+                        "reorder_clauses",
+                        "change_connectors",
+                        "simple_reorder"
+                    ]
                 }
             }
         }
         
     def get_test(self, test_id: str) -> Optional[Dict[str, Any]]:
-        """Get a test by its ID."""
+        """Get test information by ID."""
         return self._tests.get(test_id)
         
-    def get_tests_by_category(self, category: str) -> Dict[str, Any]:
-        """Get all tests in a specific category."""
-        return {
-            test_id: test_info 
-            for test_id, test_info in self._tests.items()
-            if test_info.get("category") == category
-        }
-        
-    def get_tests_by_modality(self, modality: str) -> Dict[str, Any]:
-        """Get all tests compatible with a specific modality."""
-        return {
-            test_id: test_info
-            for test_id, test_info in self._tests.items()
-            if modality in test_info.get("compatible_modalities", [])
-        }
-        
-    def get_tests_by_model_type(self, model_type: str) -> Dict[str, Any]:
-        """Get all tests compatible with a specific model type."""
-        return {
-            test_id: test_info
-            for test_id, test_info in self._tests.items()
-            if model_type in test_info.get("compatible_sub_types", [])
-        }
+    def get_tests_by_category(self, category: str) -> List[Dict[str, Any]]:
+        """Get all tests in a category."""
+        return [test for test in self._tests.values() if test["category"] == category]
+
+    def get_tests_by_modality(self, modality: str) -> List[Dict[str, Any]]:
+        """Get all tests compatible with a modality."""
+        return [test for test in self._tests.values() if modality in test["compatible_modalities"]]
+
+    def get_all_tests(self) -> List[Dict[str, Any]]:
+        """Get all registered tests."""
+        return list(self._tests.values())
 
 # Create a singleton instance
 test_registry = TestRegistry()

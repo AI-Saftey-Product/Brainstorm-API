@@ -162,9 +162,6 @@ def get_model_specific_tests(
         test_class = test_info["test_class"]
         test_category = test_info.get("category", "")
         
-        # Create a unique ID that includes category for uniqueness
-        test_id = f"{test_category.lower()}_{test_id}"
-        
         # Get user-friendly display info
         display = display_info.get(test_id, {
             "display_name": test_id.replace("_", " ").title(),
@@ -172,7 +169,7 @@ def get_model_specific_tests(
         })
         
         tests[test_id] = {
-            "id": test_id,  # Unique ID for selection
+            "id": test_id,  # Use original test ID consistently
             "name": display["display_name"],  # User-friendly display name
             "category": test_category.title(),  # Capitalize category
             "description": display["description"],
@@ -257,10 +254,42 @@ async def debug_get_all_test_runs() -> List[Dict[str, Any]]:
 
 async def debug_websocket_connection(test_run_id: str) -> Dict[str, Any]:
     """Debug endpoint to test WebSocket connections."""
+    # Check if there are active connections
+    active_connections = websocket_manager.active_connections.get(test_run_id, set())
+    connection_count = len(active_connections)
+    
+    # Get last connection time
+    last_connection = websocket_manager.last_connection_time.get(test_run_id)
+    
+    # Send a test message
+    test_message = {
+        "type": "debug_message",
+        "test_run_id": test_run_id,
+        "timestamp": datetime.utcnow().isoformat(),
+        "connection_info": {
+            "active_connections": connection_count,
+            "last_connection": last_connection,
+            "has_connections": test_run_id in websocket_manager.active_connections
+        }
+    }
+    
+    try:
+        await websocket_manager.send_notification(test_run_id, test_message)
+        message_sent = True
+    except Exception as e:
+        message_sent = False
+        logger.error(f"Error sending debug message: {e}")
+    
     return {
         "status": "success",
         "message": f"WebSocket connection test for run {test_run_id}",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
+        "connection_info": {
+            "active_connections": connection_count,
+            "last_connection": last_connection,
+            "has_connections": test_run_id in websocket_manager.active_connections,
+            "message_sent": message_sent
+        }
     }
 
 async def debug_test_run_status(test_run_id: str) -> Dict[str, Any]:
@@ -351,35 +380,35 @@ class TestRunCreate(BaseModel):
     model_settings: Dict[str, Any]
     parameters: Optional[Dict[str, Any]]
 
+def _serialize_datetime(obj: Any) -> Any:
+    """Recursively serialize datetime objects in a dictionary or list."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: _serialize_datetime(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_datetime(item) for item in obj]
+    return obj
+
 async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
     """Create a new test run."""
     try:
+        # Generate test run ID if not provided
         test_run_id = test_run_data.test_run_id or str(uuid.uuid4())
-        test_ids = test_run_data.test_ids
         
-        # Create test run
+        # Initialize test run
         test_run = {
             "id": test_run_id,
             "status": "running",
+            "progress": 0,
+            "total_tests": len(test_run_data.test_ids),
+            "completed_tests": 0,
+            "failed_tests": 0,
+            "results": [],
             "created_at": datetime.utcnow().isoformat(),
-            "tests": test_ids,
             "model_settings": test_run_data.model_settings,
             "parameters": test_run_data.parameters or {}
         }
-        
-        # Send initial connection message
-        await websocket_manager.send_notification(test_run_id, {
-            "type": "test_status_update",
-            "test_run_id": test_run_id,
-            "progress": 0,
-            "current_test": "Initializing...",
-            "test_stats": {
-                "total": len(test_ids),
-                "completed": 0,
-                "failed": 0,
-                "passed": 0
-            }
-        })
         
         # Create model adapter based on settings
         model_settings = test_run_data.model_settings
@@ -389,161 +418,193 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
             await model_adapter.initialize(model_settings)
         else:
             raise ValueError(f"Unsupported modality: {model_settings['modality']}")
-            
-        # Track test statistics
-        total_tests = len(test_ids)
-        completed_tests = 0
+        
+        # Track failed tests
         failed_tests = 0
-        passed_tests = 0
-            
+        
         # Execute tests asynchronously
-        for test_id in test_ids:
-            # Split into category and name
-            parts = test_id.split("_", 1)
-            category = parts[0] if len(parts) > 1 else "default"
-            name = parts[1] if len(parts) > 1 else test_id
-            
-            # Convert name to registry format
-            name = name.replace("-", "_")
-            
-            # Update progress
-            await websocket_manager.send_notification(test_run_id, {
-                "type": "test_status_update",
-                "progress": int((completed_tests / total_tests) * 100),
-                "current_test": test_id,
-                "test_stats": {
-                    "total": total_tests,
-                    "completed": completed_tests,
-                    "failed": failed_tests,
-                    "passed": passed_tests
-                }
-            })
-            
-            # Get test parameters if provided
-            test_params = test_run_data.parameters.get(test_id, {}) if test_run_data.parameters else {}
-            
+        for test_id in test_run_data.test_ids:
             try:
-                # Find test in registry
-                test_info = TEST_REGISTRY.get(test_id)
+                # Get test info directly from registry
+                test_info = test_registry.get_test(test_id)
+                
                 if not test_info:
                     error_msg = f"Test not found: {test_id}"
                     logger.error(error_msg)
-                    failed_tests += 1
-                    
-                    # Send test failure message
-                    await websocket_manager.send_notification(test_run_id, {
-                        "type": "test_failed",
+                    test_run["results"].append({
+                        "id": str(uuid.uuid4()),
+                        "test_run_id": test_run_id,
                         "test_id": test_id,
-                        "test_name": name,
-                        "test_category": category,
+                        "status": "error",
                         "error": error_msg,
                         "created_at": datetime.utcnow().isoformat()
                     })
+                    failed_tests += 1
                     continue
-
-                # Create and run test instance
-                test_class = test_info["test_class"]
-                test_instance = test_class(test_params)
-                result = await test_instance.run_test(model_adapter, model_settings)
                 
-                # Update test statistics
-                completed_tests += 1
-                if result and result.get("status") == "success":
-                    passed_tests += 1
+                # Create test instance
+                test_class = test_info["test_class"]
+                if isinstance(test_class, str):
+                    test_class = _import_test_class(test_class)
+                
+                if not test_class:
+                    error_msg = f"Failed to import test class for {test_id}"
+                    logger.error(error_msg)
+                    test_run["results"].append({
+                        "id": str(uuid.uuid4()),
+                        "test_run_id": test_run_id,
+                        "test_id": test_id,
+                        "status": "error",
+                        "error": error_msg,
+                        "created_at": datetime.utcnow().isoformat()
+                    })
+                    failed_tests += 1
+                    continue
+                
+                # Initialize test with configuration
+                test_config = {
+                    **test_info.get("default_config", {}),
+                    **test_run_data.parameters.get(test_id, {}),
+                    "websocket_manager": websocket_manager,
+                    "test_id": test_id
+                }
+                
+                test_instance = test_class(test_config)
+                
+                # Send test start notification
+                start_message = {
+                    "type": "test_started",
+                    "test_run_id": test_run_id,
+                    "test_id": test_id,
+                    "test_name": test_info["name"],
+                    "test_category": test_info["category"],
+                    "status": "running",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                await websocket_manager.send_notification(test_run_id, start_message)
+                
+                # Run test with both model_adapter and model_parameters
+                result = await test_instance.run_test(model_adapter, test_run_data.model_settings)
+                
+                # Serialize datetime objects in the result
+                serialized_result = _serialize_datetime(result)
+                
+                # Add result to test run
+                test_run["results"].append({
+                    "id": str(uuid.uuid4()),
+                    "test_run_id": test_run_id,
+                    "test_id": test_id,
+                    "test_category": test_info["category"],
+                    "test_name": test_info["name"],
+                    "status": "completed",
+                    "result": serialized_result,
+                    "created_at": datetime.utcnow().isoformat()
+                })
+                
+                test_run["completed_tests"] += 1
+                if result.get("passed", False):
+                    test_run["completed_tests"] += 1
                 else:
                     failed_tests += 1
                 
-                # Send individual test result
-                await websocket_manager.send_notification(test_run_id, {
-                    "type": "test_result",
-                    "test_id": test_id,
-                    "test_name": name,
-                    "test_category": category,
-                    "status": result.get("status", "error") if result else "error",
-                    "metrics": result.get("metrics", {}) if result else {},
-                    "issues_found": result.get("issues_found", 0) if result else 0,
-                    "analysis": result.get("analysis", {}) if result else {},
-                    "created_at": datetime.utcnow().isoformat()
-                })
+                # Update progress
+                test_run["progress"] = (test_run["completed_tests"] / test_run["total_tests"]) * 100
                 
-                # Update test run with result
-                if "results" not in test_run:
-                    test_run["results"] = []
-                test_run["results"].append({
-                    "id": str(uuid.uuid4()),
+                # Send progress update
+                progress_message = {
+                    "type": "test_progress",
                     "test_run_id": test_run_id,
-                    "test_id": test_id,
-                    "test_category": category,
-                    "test_name": name,
-                    "status": "success" if result and result.get("status") == "success" else "error",
-                    "score": result.get("score", 0) if result else 0,
-                    "metrics": result.get("metrics", {}) if result else {},
-                    "issues_found": result.get("issues_found", 0) if result else 0,
-                    "analysis": result.get("analysis", {}) if result else {},
-                    "created_at": datetime.utcnow().isoformat()
-                })
+                    "progress": test_run["progress"],
+                    "completed_tests": test_run["completed_tests"],
+                    "total_tests": test_run["total_tests"],
+                    "current_test": test_id,
+                    "status": "running"
+                }
+                await websocket_manager.send_notification(test_run_id, progress_message)
+                
             except Exception as e:
-                # Update test statistics
-                completed_tests += 1
-                failed_tests += 1
+                error_msg = f"Error running test {test_id}: {str(e)}"
+                logger.error(error_msg)
+                logger.error(traceback.format_exc())
                 
-                error_msg = str(e)
-                logger.error(f"Error running test {test_id}: {error_msg}")
-                
-                # Send test failure message
-                await websocket_manager.send_notification(test_run_id, {
-                    "type": "test_failed",
-                    "test_id": test_id,
-                    "test_name": name,
-                    "test_category": category,
-                    "error": error_msg
-                })
-                
-                if "results" not in test_run:
-                    test_run["results"] = []
                 test_run["results"].append({
                     "id": str(uuid.uuid4()),
                     "test_run_id": test_run_id,
                     "test_id": test_id,
-                    "test_category": category,
-                    "test_name": name,
+                    "test_category": test_info.get("category", "unknown"),
+                    "test_name": test_info.get("name", test_id),
                     "status": "error",
                     "error": error_msg,
                     "created_at": datetime.utcnow().isoformat()
                 })
+                
+                failed_tests += 1
+                test_run["completed_tests"] += 1
+                
+                # Update progress
+                test_run["progress"] = (test_run["completed_tests"] / test_run["total_tests"]) * 100
         
         # Update final status and send completion message
         test_run["status"] = "completed"
         test_run["updated_at"] = datetime.utcnow().isoformat()
         
-        await websocket_manager.send_notification(test_run_id, {
-            "type": "test_complete",
-            "final_results": {
-                "total_tests": total_tests,
-                "completed_tests": completed_tests,
-                "passed_tests": passed_tests,
-                "failed_tests": failed_tests,
-                "test_run_id": test_run_id,
-                "results": test_run["results"]
-            }
-        })
+        # Create a summary of the results
+        results_summary = []
+        for result in test_run.get("results", []):
+            if result.get("status") == "completed":
+                summary = {
+                    "test_id": result["test_id"],
+                    "test_name": result["test_name"],
+                    "test_category": result["test_category"],
+                    "status": result["status"],
+                    "score": result["result"].get("score", 0),
+                    "issues_found": result["result"].get("issues_found", 0),
+                    "vulnerability_score": result["result"].get("analysis", {}).get("vulnerability_score", 0),
+                    "total_tests": result["result"].get("metrics", {}).get("total_tests", 0),
+                    "successful_attacks": result["result"].get("metrics", {}).get("successful_attacks", 0),
+                    "total_time": result["result"].get("metrics", {}).get("total_time", 0)
+                }
+                results_summary.append(summary)
         
-        logger.info(f"Completed test run {test_run_id} with {len(test_run.get('results', []))} results")
-        return test_run
+        # Create completion message with summary
+        completion_message = {
+            "type": "test_complete",
+            "test_run_id": test_run_id,
+            "status": "completed",
+            "results": {
+                "total_tests": test_run["total_tests"],
+                "completed_tests": test_run["completed_tests"],
+                "failed_tests": failed_tests,
+                "test_summary": results_summary
+            }
+        }
+        
+        # Send completion message with summary
+        await websocket_manager.send_notification(test_run_id, completion_message)
+        
+        logger.info(f"Completed test run {test_run_id} with {len(results_summary)} test summaries")
+        
+        # Serialize the test run before returning
+        serialized_test_run = _serialize_datetime(test_run)
+        return serialized_test_run
         
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Error creating test run: {error_msg}")
         logger.error(traceback.format_exc())
         
-        # Send error message
-        await websocket_manager.send_notification(test_run_id, {
+        # Create and serialize error message
+        error_message = {
             "type": "test_failed",
             "error": error_msg,
             "details": {
-                "traceback": traceback.format_exc()
+                "traceback": traceback.format_exc(),
+                "timestamp": datetime.utcnow().isoformat()
             }
-        })
+        }
+        
+        # Send serialized error message
+        await websocket_manager.send_notification(test_run_id, _serialize_datetime(error_message))
         
         raise
 

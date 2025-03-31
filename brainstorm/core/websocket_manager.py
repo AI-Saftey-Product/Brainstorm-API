@@ -3,8 +3,30 @@ import json
 import logging
 from typing import Dict, Any, List, Optional
 from fastapi import WebSocket
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+def _serialize_datetime(obj: Any) -> Any:
+    """Recursively serialize datetime objects in a dictionary or list."""
+    try:
+        if isinstance(obj, datetime):
+            logger.debug(f"Found datetime object: {obj}")
+            return obj.isoformat()
+        elif isinstance(obj, dict):
+            logger.debug(f"Processing dictionary with keys: {list(obj.keys())}")
+            return {k: _serialize_datetime(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            logger.debug(f"Processing list of length: {len(obj)}")
+            return [_serialize_datetime(item) for item in obj]
+        elif obj is not None:
+            logger.debug(f"Processing object of type: {type(obj)}")
+        return obj
+    except Exception as e:
+        logger.error(f"Error in _serialize_datetime: {str(e)}")
+        logger.error(f"Object type: {type(obj)}")
+        logger.error(f"Object value: {obj}")
+        raise
 
 class WebsocketManager:
     """Manages WebSocket connections and message broadcasting."""
@@ -51,10 +73,27 @@ class WebsocketManager:
     async def broadcast_json(cls, message: Dict[str, Any]) -> None:
         """Broadcast a JSON message to all connected clients."""
         try:
-            json_str = json.dumps(message)
+            logger.debug(f"Original message type: {type(message)}")
+            logger.debug(f"Original message keys: {list(message.keys()) if isinstance(message, dict) else 'not a dict'}")
+            
+            # Serialize datetime objects before converting to JSON
+            logger.debug("Starting datetime serialization...")
+            serialized_message = _serialize_datetime(message)
+            logger.debug("Datetime serialization completed")
+            
+            logger.debug("Converting to JSON string...")
+            json_str = json.dumps(serialized_message)
+            logger.debug("JSON conversion completed")
+            
+            logger.debug("Broadcasting message...")
             await cls.broadcast_text(json_str)
+            logger.debug("Broadcast completed")
         except Exception as e:
             logger.error(f"Error broadcasting JSON message: {str(e)}")
+            logger.error(f"Message type: {type(message)}")
+            logger.error(f"Message content: {message}")
+            logger.error(f"Exception details: {str(e)}")
+            raise
     
     @classmethod
     async def send_personal_message(cls, message: str, websocket: WebSocket) -> None:

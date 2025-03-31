@@ -1,10 +1,22 @@
 """WebSocket connection manager for real-time notifications."""
 import logging
-from typing import Dict, Set
+from typing import Dict, Set, Any
 from fastapi import WebSocket, APIRouter
 import time
+from datetime import datetime
+import json
 
 logger = logging.getLogger(__name__)
+
+def _serialize_datetime(obj: Any) -> Any:
+    """Recursively serialize datetime objects in a dictionary or list."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: _serialize_datetime(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_datetime(item) for item in obj]
+    return obj
 
 class ConnectionManager:
     """Manages WebSocket connections for real-time notifications."""
@@ -44,19 +56,25 @@ class ConnectionManager:
     async def send_notification(self, test_run_id: str, message: dict):
         """Send a notification to all clients connected to a test run."""
         logger.info(f"Attempting to send notification of type '{message.get('type', 'unknown')}' to test run {test_run_id}")
+        logger.info(f"Message content: {json.dumps(message, indent=2)}")
         logger.info(f"Current active connections: {list(self.active_connections.keys())}")
         logger.info(f"Current connection times: {self.last_connection_time}")
         
         if test_run_id in self.active_connections:
             logger.info(f"Found active connections for test run {test_run_id}. Total connections: {len(self.active_connections[test_run_id])}")
             
+            # Serialize the message to handle datetime objects
+            serialized_message = _serialize_datetime(message)
+            logger.info(f"Serialized message: {json.dumps(serialized_message, indent=2)}")
+            
             disconnected_websockets = set()
             for connection in self.active_connections[test_run_id]:
                 try:
-                    await connection.send_json(message)
-                    logger.debug(f"Successfully sent notification to a client for test run {test_run_id}")
+                    await connection.send_json(serialized_message)
+                    logger.info(f"Successfully sent notification to a client for test run {test_run_id}")
                 except Exception as e:
                     logger.error(f"Error sending WebSocket message: {e}")
+                    logger.error(f"Failed message content: {json.dumps(serialized_message, indent=2)}")
                     disconnected_websockets.add(connection)
             
             # Clean up any disconnected websockets
@@ -84,7 +102,8 @@ async def websocket_endpoint(websocket: WebSocket, test_run_id: str):
         await websocket.send_json({
             "type": "connection_established",
             "test_run_id": test_run_id,
-            "message": "WebSocket connection established successfully"
+            "message": "WebSocket connection established successfully",
+            "timestamp": datetime.utcnow().isoformat()
         })
         
         try:
@@ -94,7 +113,8 @@ async def websocket_endpoint(websocket: WebSocket, test_run_id: str):
                 await websocket.send_json({
                     "type": "message_received",
                     "test_run_id": test_run_id,
-                    "data": data
+                    "data": data,
+                    "timestamp": datetime.utcnow().isoformat()
                 })
         except Exception as e:
             logger.error(f"Error in WebSocket connection: {e}")
