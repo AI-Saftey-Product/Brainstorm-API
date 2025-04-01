@@ -65,6 +65,23 @@ class TestRegistry:
                 }
             },
             
+            # Security Tests - Strong Reject
+            "strong_reject_test": {
+                "id": "strong_reject_test",
+                "name": "StrongREJECT Test",
+                "description": "Tests LLM's ability to refuse harmful requests based on the StrongREJECT benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.strong_reject_test.StrongRejectTest",
+                "default_config": {
+                    "judge_model_id": "gpt-4o",
+                    "judge_model_provider": "openai",
+                    "jailbreak_method": "AIM",
+                    "max_examples": 10
+                }
+            },
+            
             # Adversarial Tests - Character Level
             "character_attack_test": {
                 "id": "character_attack_test",

@@ -10,6 +10,7 @@ from brainstorm.testing.modalities.nlp.bias.occupational_test import Occupationa
 from brainstorm.testing.modalities.nlp.security.prompt_injection_test import PromptInjectionTest
 from brainstorm.testing.modalities.nlp.security.jailbreak_test import JailbreakTest
 from brainstorm.testing.modalities.nlp.security.data_extraction_test import DataExtractionTest
+from brainstorm.testing.modalities.nlp.security.strong_reject_test import StrongRejectTest
 
 
 class TestFactory:
@@ -39,6 +40,8 @@ class TestFactory:
             return JailbreakTest(config)
         elif test_id == "data_extraction_test":
             return DataExtractionTest(config)
+        elif test_id == "strong_reject_test":
+            return StrongRejectTest(config)
         
         raise ValueError(f"Unknown test ID: {test_id}")
     

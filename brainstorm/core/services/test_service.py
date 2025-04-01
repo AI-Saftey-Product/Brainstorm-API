@@ -16,6 +16,7 @@ from brainstorm.testing.modalities.nlp.bias.occupational_test import Occupationa
 from brainstorm.testing.modalities.nlp.prompt_injection_test import PromptInjectionTest
 from brainstorm.testing.modalities.nlp.security.jailbreak_test import JailbreakTest
 from brainstorm.testing.modalities.nlp.security.data_extraction_test import DataExtractionTest
+from brainstorm.testing.modalities.nlp.security.strong_reject_test import StrongRejectTest
 from brainstorm.testing.modalities.nlp.optimized_robustness_test import OptimizedRobustnessTest
 from brainstorm.testing.modalities.nlp.bias.evaluators import (
     IntersectionalEvaluator,
@@ -52,6 +53,8 @@ def _import_test_class(path: str) -> type:
 # Convert string paths to actual classes in registry
 logger.info("Initializing test registry...")
 logger.debug(f"Found {len(TEST_REGISTRY)} tests in registry")
+# Log all registered test IDs for debugging
+logger.debug(f"Registered test IDs: {', '.join(TEST_REGISTRY.keys())}")
 
 for test_id, test_info in TEST_REGISTRY.items():
     logger.debug(f"\nProcessing test {test_id}:")
@@ -65,6 +68,15 @@ for test_id, test_info in TEST_REGISTRY.items():
             logger.error(f"Failed to import test class for {test_id}")
     else:
         logger.debug(f"Test class is already imported")
+
+# Add explicit check for StrongRejectTest to ensure it's in the registry
+if "strong_reject_test" in TEST_REGISTRY:
+    logger.info("StrongREJECT Test found in registry")
+    if isinstance(TEST_REGISTRY["strong_reject_test"].get("test_class"), str):
+        logger.debug("Ensuring StrongRejectTest is properly imported")
+        TEST_REGISTRY["strong_reject_test"]["test_class"] = StrongRejectTest
+else:
+    logger.error("StrongREJECT Test NOT found in registry. This may indicate an issue with registry initialization.")
 
 logger.info(f"Test registry initialization complete with {len(TEST_REGISTRY)} tests")
 
@@ -560,7 +572,7 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
                         continue
                     
                     # Extract test metadata
-                    test_info_from_registry = test_registry.get_test_info(test_id) or {}
+                    test_info_from_registry = test_registry.get_test(test_id) or {}
                     
                     formatted_results[test_id] = {
                         "test": {
