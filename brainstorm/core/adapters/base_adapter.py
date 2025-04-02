@@ -1,16 +1,41 @@
 """Base adapter for model interactions."""
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BaseModelAdapter(ABC):
     """Base class for all model adapters."""
     
-    def __init__(self):
-        """Initialize the base adapter."""
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """Initialize the base adapter with configuration."""
+        self.config = config or {}
+        self.model = None
         self.model_config = None
         self.model_id = None
         self.api_key = None
         
+    def set_model(self, model: Any) -> None:
+        """Set the model to be adapted."""
+        self.model = model
+    
+    def get_model(self) -> Any:
+        """Get the current model."""
+        return self.model
+    
+    def adapt_input(self, input_data: Any) -> Any:
+        """Adapt input data for the model. Must be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement adapt_input")
+    
+    def adapt_output(self, output_data: Any) -> Any:
+        """Adapt output data from the model. Must be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement adapt_output")
+    
+    def validate_config(self) -> bool:
+        """Validate adapter configuration. Must be implemented by subclasses."""
+        raise NotImplementedError("Subclasses must implement validate_config")
+    
     @abstractmethod
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate text from a prompt."""

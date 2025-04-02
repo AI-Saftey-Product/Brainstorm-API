@@ -7,6 +7,209 @@ class TestRegistry:
     def __init__(self):
         """Initialize the test registry with available tests."""
         self._tests = {
+            # Performance Tests - APPS
+            "apps_test": {
+                "id": "apps_test",
+                "name": "APPS Test",
+                "description": "Tests model performance on Python programming tasks across three difficulty levels (introductory, interview, competition)",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.apps_test.APPSTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "level": "introductory"
+                }
+            },
+            
+            # Performance Tests - BigCodeBench
+            "bigcodebench_test": {
+                "id": "bigcodebench_test",
+                "name": "BigCodeBench Test",
+                "description": "Tests model performance on code generation tasks from the BigCodeBench dataset",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.bigcodebench_test.BigCodeBenchTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "version": "v1",
+                    "subset": None
+                }
+            },
+            
+            # Performance Tests - CORE-Bench
+            "core_bench_test": {
+                "id": "core_bench_test",
+                "name": "CORE-Bench Test",
+                "description": "Tests model performance on code generation tasks from the CORE-Bench dataset",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.core_bench_test.COREBenchTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "difficulty": "easy",
+                    "field": "all",
+                    "language": "python",
+                    "capsule_ids": None,
+                    "exclude_capsule_ids": None,
+                    "filter_out_gpu": False,
+                    "vllm_model": None,
+                    "max_retries": 3,
+                    "backoff_factor": 2,
+                    "max_messages": 10,
+                    "token_limit": 4096
+                }
+            },
+            
+            # Performance Tests - ClassEval
+            "class_eval_test": {
+                "id": "class_eval_test",
+                "name": "ClassEval Test",
+                "description": "Tests model performance on class-level Python code generation tasks",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.class_eval_test.ClassEvalTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "few_shot": 1,
+                    "few_shot_seed": 42
+                }
+            },
+            
+            # Performance Tests - DS-1000
+            "ds_1000_test": {
+                "id": "ds_1000_test",
+                "name": "DS-1000 Test",
+                "description": "Tests model performance on data science code generation tasks across seven Python libraries (NumPy, Pandas, TensorFlow, PyTorch, SciPy, Scikit-learn, Matplotlib)",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.ds_1000_test.DS1000Test",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": True,
+                    "max_concurrent": 3,
+                    "libraries": ["numpy", "pandas", "tensorflow", "pytorch", "scipy", "sklearn", "matplotlib"]
+                }
+            },
+            
+            # Performance Tests - HumanEval
+            "humaneval_test": {
+                "id": "humaneval_test",
+                "name": "HumanEval Test",
+                "description": "Tests model performance on synthesizing programs from docstrings using the official HumanEval benchmark",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.humaneval_test.HumanEvalTest",
+                "default_config": {
+                    "epochs": 5,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Performance Tests - MBPP
+            "mbpp_test": {
+                "id": "mbpp_test",
+                "name": "MBPP Test",
+                "description": "Tests model performance on synthesizing short Python programs from natural language descriptions using the Mostly Basic Python Programming dataset",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.mbpp_test.MBPPTest",
+                "default_config": {
+                    "epochs": 5,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "use_sanitized": True,
+                    "difficulty_level": "entry"
+                }
+            },
+            
+            # Performance Tests - SciCode
+            "scicode_test": {
+                "id": "scicode_test",
+                "name": "SciCode Test",
+                "description": "Tests model performance on generating code to solve scientific research problems from mathematics, physics, chemistry, biology, and materials science",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.scicode_test.SciCodeTest",
+                "default_config": {
+                    "epochs": 5,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 65,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "provide_scientific_background": False,
+                    "timeout": 300,
+                    "include_dev_set": False
+                }
+            },
+            
+            # Performance Tests - USACO
+            "usaco_test": {
+                "id": "usaco_test",
+                "name": "USACO Test",
+                "description": "Tests model performance on solving USA Computing Olympiad programming problems across four difficulty levels (bronze, silver, gold, platinum).",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.usaco_test.USACOTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 307,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "difficulty": None,
+                    "timeout": 300
+                }
+            },
+            
             # Vision Security Tests - Visual Prompt Injection
             "visual_prompt_injection_test": {
                 "id": "visual_prompt_injection_test",
@@ -21,6 +224,26 @@ class TestRegistry:
                     "temperature": 0.6,
                     "max_tokens": 2048,
                     "judge_llm": "gpt-4o",
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - AIR Bench
+            "air_bench_test": {
+                "id": "air_bench_test",
+                "name": "AIR Bench Test",
+                "description": "Tests model safety across various risk categories derived from government regulations and company policies",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Safety Analysis"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.air_bench_test.AIRBenchTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
                     "challenges": None,
                     "shuffle": False,
                     "max_concurrent": 3
@@ -99,6 +322,146 @@ class TestRegistry:
                     "judge_model_provider": "openai",
                     "jailbreak_method": "AIM",
                     "max_examples": 10
+                }
+            },
+            
+            # Security Tests - CyberSecEval2 Prompt Injection
+            "cyberseceval2_prompt_injection_test": {
+                "id": "cyberseceval2_prompt_injection_test",
+                "name": "CyberSecEval2 Prompt Injection Test",
+                "description": "Tests model susceptibility to prompt injection attacks based on CyberSecEval2 benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_prompt_injection_test.CyberSecEval2PromptInjectionTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "judge_llm": "gpt-4o",
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - CyberSecEval2 Vulnerability Exploit
+            "cyberseceval2_vulnerability_exploit_test": {
+                "id": "cyberseceval2_vulnerability_exploit_test",
+                "name": "CyberSecEval2 Vulnerability Exploit Test",
+                "description": "Tests model capability to find and exploit vulnerabilities in code based on CyberSecEval2 benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_vulnerability_exploit_test.CyberSecEval2VulnerabilityExploitTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - CyberSecEval2 Interpreter Abuse
+            "cyberseceval2_interpreter_abuse_test": {
+                "id": "cyberseceval2_interpreter_abuse_test",
+                "name": "CyberSecEval2 Interpreter Abuse Test",
+                "description": "Tests model susceptibility to interpreter abuse attacks based on CyberSecEval2 benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_interpreter_abuse_test.CyberSecEval2InterpreterAbuseTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - CyberSecEval2 Code Generation
+            "cyberseceval2_code_generation_test": {
+                "id": "cyberseceval2_code_generation_test",
+                "name": "CyberSecEval2 Code Generation Test",
+                "description": "Tests model capability to generate secure code based on CyberSecEval2 benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_code_generation_test.CyberSecEval2CodeGenerationTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - CyberSecEval2 Code Understanding
+            "cyberseceval2_code_understanding_test": {
+                "id": "cyberseceval2_code_understanding_test",
+                "name": "CyberSecEval2 Code Understanding Test",
+                "description": "Tests model capability to understand and analyze code for security vulnerabilities based on CyberSecEval2 benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Analysis", "Security Analysis"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_code_understanding_test.CyberSecEval2CodeUnderstandingTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - CyberSecEval2 Code Completion
+            "cyberseceval2_code_completion_test": {
+                "id": "cyberseceval2_code_completion_test",
+                "name": "CyberSecEval2 Code Completion Test",
+                "description": "Tests model capability to complete code securely based on CyberSecEval2 benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_code_completion_test.CyberSecEval2CodeCompletionTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
+            # Security Tests - XSTest
+            "xs_test": {
+                "id": "xs_test",
+                "name": "XSTest",
+                "description": "Tests for exaggerated safety behaviors in LLMs using 250 safe and 200 unsafe prompts",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Safety Analysis"],
+                "test_class": "brainstorm.testing.modalities.nlp.security.xs_test.XSTest",
+                "default_config": {
+                    "epochs": 4,
+                    "temperature": 0.75,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
                 }
             },
             
@@ -514,11 +877,190 @@ class TestRegistry:
                         "simple_reorder"
                     ]
                 }
+            },
+            "assistant_bench_test": {
+                "id": "assistant_bench_test",
+                "name": "AssistantBench Test",
+                "description": "Tests model performance on real-world web-based tasks, evaluating capabilities in information retrieval, analysis, and task completion across different domains.",
+                "category": "performance",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Web Agent", "Benchmark"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.assistant_bench_test.AssistantBenchTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 214,
+                    "challenges": None,
+                    "shuffle": True,
+                    "max_concurrent": 3,
+                    "difficulty": None,
+                    "token_limit": 500000,
+                    "web_search_model": None
+                }
+            },
+            "usaco": {
+                "id": "usaco",
+                "name": "USACO Test",
+                "description": "Evaluates model performance on solving USA Computing Olympiad programming problems across four difficulty levels (bronze, silver, gold, platinum).",
+                "category": "performance",
+                "compatible_modalities": ["nlp"],
+                "compatible_sub_types": ["code"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.usaco_test.USACOTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 307,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 1,
+                    "difficulty": None,
+                    "timeout": 180,
+                    "include_dev_set": False
+                }
+            },
+            "gaia": {
+                "id": "gaia",
+                "name": "GAIA Test",
+                "description": "Evaluates web agent capabilities on real-world tasks, consisting of 450 questions testing tool use on realistic assistant tasks, primarily web browsing.",
+                "category": "performance",
+                "compatible_modalities": ["nlp"],
+                "compatible_sub_types": ["agent", "web_agent"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.gaia_test.GAIATest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 450,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3,
+                    "subset": "2023_all",
+                    "split": "validation",
+                    "instance_ids": None,
+                    "max_attempts": 1,
+                    "max_messages": 100,
+                    "code_timeout": 180
+                }
+            },
+            "mind2web": {
+                "id": "mind2web",
+                "name": "Mind2Web Test",
+                "description": "Evaluates web agent capabilities on real-world web tasks across diverse websites and domains, testing generalization and task completion abilities.",
+                "category": "performance",
+                "compatible_modalities": ["nlp"],
+                "compatible_sub_types": ["web_agent"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.mind2web_test.Mind2WebTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 1,
+                    "split": "test_domain",
+                    "domain": None,
+                    "subdomain": None,
+                    "max_attempts": 1,
+                    "max_messages": 100,
+                    "code_timeout": 180
+                }
+            },
+            "sycophancy": {
+                "id": "sycophancy",
+                "name": "Sycophancy Test",
+                "description": "Evaluates model tendency to agree with incorrect assertions when challenged, based on Anthropic's sycophancy benchmark.",
+                "category": "performance",
+                "compatible_modalities": ["nlp"],
+                "compatible_sub_types": ["text_generation"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.sycophancy_test.SycophancyTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 1024,
+                    "num_test_cases": 100,
+                    "shuffle": False,
+                    "max_concurrent": 1,
+                    "dataset_names": ["are_you_sure"],
+                    "scorer_model": "openai/gpt-4",
+                    "max_attempts": 1,
+                    "max_messages": 10,
+                    "code_timeout": 120
+                }
+            },
+            "agentharm": {
+                "id": "agentharm",
+                "name": "AgentHarm Test",
+                "description": "Evaluates harmful behavior in LLM agents across varied tasks and scenarios, measuring refusal behavior and response appropriateness.",
+                "category": "performance",
+                "compatible_modalities": ["nlp"],
+                "compatible_sub_types": ["agent"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.agentharm_test.AgentHarmTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 2048,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 1,
+                    "split": "test_public",
+                    "behavior_ids": [],
+                    "detailed_behaviors": None,
+                    "hint_included": None,
+                    "n_irrelevant_tools": 0,
+                    "refusal_judge": "openai/gpt-4",
+                    "semantic_judge": "openai/gpt-4",
+                    "max_attempts": 1,
+                    "max_messages": 100,
+                    "code_timeout": 180
+                }
+            },
+            "lab_bench": {
+                "id": "lab_bench",
+                "name": "LAB-Bench Test",
+                "description": "Evaluates LLM capabilities for scientific research workflows across domains like chemistry, biology, materials science, and general science tasks.",
+                "category": "performance",
+                "compatible_modalities": ["nlp"],
+                "compatible_sub_types": ["text_generation", "multimodal"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.lab_bench_test.LABBenchTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 1024,
+                    "num_test_cases": 100,
+                    "challenges": None,
+                    "shuffle": False,
+                    "shuffle_choices": False,
+                    "max_concurrent": 3,
+                    "subsets": ["LitQA2"],
+                    "metrics": ["precision", "coverage"]
+                }
+            },
+            "wmdp": {
+                "id": "wmdp",
+                "name": "WMDP Test",
+                "description": "Evaluates hazardous knowledge in LLMs across biosecurity, cybersecurity, and chemical security domains using the Weapons of Mass Destruction Proxy dataset.",
+                "category": "performance",
+                "compatible_modalities": ["nlp"],
+                "compatible_sub_types": ["text_generation"],
+                "test_class": "brainstorm.testing.modalities.nlp.performance.wmdp_test.WMDPTest",
+                "default_config": {
+                    "epochs": 1,
+                    "temperature": 0.0,
+                    "max_tokens": 512,
+                    "num_test_cases": 500,
+                    "domains": ["bio", "chem", "cyber"],
+                    "shuffle": False,
+                    "max_concurrent": 5
+                }
             }
         }
         
     def get_test(self, test_id: str) -> Optional[Dict[str, Any]]:
-        """Get test information by ID."""
+        """Get a test by its ID."""
         return self._tests.get(test_id)
         
     def get_tests_by_category(self, category: str) -> List[Dict[str, Any]]:
@@ -526,11 +1068,11 @@ class TestRegistry:
         return [test for test in self._tests.values() if test["category"] == category]
 
     def get_tests_by_modality(self, modality: str) -> List[Dict[str, Any]]:
-        """Get all tests compatible with a modality."""
+        """Get all tests for a modality."""
         return [test for test in self._tests.values() if modality in test["compatible_modalities"]]
 
     def get_all_tests(self) -> List[Dict[str, Any]]:
-        """Get all registered tests."""
+        """Get all available tests."""
         return list(self._tests.values())
 
 # Create a singleton instance
