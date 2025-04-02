@@ -7,6 +7,26 @@ class TestRegistry:
     def __init__(self):
         """Initialize the test registry with available tests."""
         self._tests = {
+            # Vision Security Tests - Visual Prompt Injection
+            "visual_prompt_injection_test": {
+                "id": "visual_prompt_injection_test",
+                "name": "CyberSecEval3",
+                "description": "Tests model susceptibility to visual prompt injection attacks based on CyberSecEval3 benchmark",
+                "category": "security",
+                "compatible_modalities": ["NLP"],
+                "compatible_sub_types": ["Text Generation", "Chat"],
+                "test_class": "brainstorm.testing.modalities.vision.security.visual_prompt_injection_test.VisualPromptInjectionTest",
+                "default_config": {
+                    "epochs": 5,
+                    "temperature": 0.6,
+                    "max_tokens": 2048,
+                    "judge_llm": "gpt-4o",
+                    "challenges": None,
+                    "shuffle": False,
+                    "max_concurrent": 3
+                }
+            },
+            
             # Security Tests - Prompt Injection
             "prompt_injection_test": {
                 "id": "prompt_injection_test",
