@@ -9,7 +9,12 @@ import os
 from pathlib import Path
 from datasets import load_dataset
 
-from brainstorm.testing.modalities.nlp.performance.base_test import BaseNLPPerformanceTest
+# Import from standard location with fallback
+try:
+    from brainstorm.testing.modalities.nlp.performance.base_test import BaseNLPPerformanceTest
+except ImportError:
+    from brainstorm.testing.base import BasePerformanceTest as BaseNLPPerformanceTest
+
 from brainstorm.config.api_keys import get_api_key
 
 # Configure logging
@@ -52,6 +57,17 @@ class BigCodeBenchTest(BaseNLPPerformanceTest):
                    f"temperature={self.temperature}, num_test_cases={self.num_test_cases}, "
                    f"version={self.version}")
     
+    async def run(self, model_parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run the BigCodeBench test.
+        
+        Args:
+            model_parameters: Optional model parameters to override defaults
+            
+        Returns:
+            Dict containing test results
+        """
+        return await self._run_test_implementation(model_parameters or {})
+
     async def _load_dataset(self) -> List[Dict[str, Any]]:
         """Load the BigCodeBench dataset from HuggingFace."""
         try:
@@ -189,27 +205,49 @@ if __name__ == '__main__':
             for epoch in range(self.epochs):
                 for idx, test_case in enumerate(test_cases):
                     try:
-                        # Log test case details
-                        logger.info(f"\nProcessing test case {idx + 1}/{len(test_cases)} (Epoch {epoch + 1}/{self.epochs})")
+                        # Create clear section boundaries for logging
+                        logger.info(f"\n{'='*50}\nTEST CASE DETAILS ({idx + 1}/{len(test_cases)}, Epoch {epoch + 1}/{self.epochs})\n{'='*50}")
                         logger.info(f"Task ID: {test_case['task_id']}")
                         logger.info(f"Required libraries: {test_case['libs']}")
                         
+                        # Log the full prompt
+                        logger.info(f"\n{'='*50}\nINPUT PROMPT\n{'='*50}")
+                        full_prompt = f"{INSTRUCTION_PROMPT}\n\n{test_case['complete_prompt']}"
+                        logger.info(f"{full_prompt}")
+                        logger.info(f"{'='*50}\n")
+                        
                         # Generate model implementation
-                        logger.info("Generating model implementation...")
+                        logger.info(f"Generating model implementation...")
                         implementation = await self.model.generate(
-                            prompt=f"{INSTRUCTION_PROMPT}\n\n{test_case['complete_prompt']}",
+                            prompt=full_prompt,
                             temperature=self.temperature,
                             max_tokens=min(2048, self.max_tokens)
                         )
-                        logger.info(f"Model implementation: {implementation}")
+                        
+                        # Log the model output with clear section
+                        logger.info(f"\n{'='*50}\nMODEL RESPONSE\n{'='*50}")
+                        logger.info(f"{implementation}")
+                        logger.info(f"{'='*50}\n")
+                        
+                        # Extract code from implementation for evaluation
+                        extracted_code = self._find_code(implementation)
                         
                         # Evaluate implementation
-                        logger.info("Evaluating implementation...")
+                        logger.info(f"Evaluating implementation...")
                         eval_result = await self._evaluate_implementation(
                             implementation=implementation,
                             test=test_case["test"],
                             libs=test_case["libs"]
                         )
+                        
+                        # Log the evaluation results with clear section
+                        logger.info(f"\n{'='*50}\nEVALUATION RESULTS\n{'='*50}")
+                        logger.info(f"Success: {eval_result['success']}")
+                        logger.info(f"Score: {eval_result['score']}")
+                        logger.info(f"Explanation: {eval_result['explanation']}")
+                        if eval_result['error']:
+                            logger.info(f"Error: {eval_result['error']}")
+                        logger.info(f"{'='*50}\n")
                         
                         # Update scores
                         score = eval_result["score"]
@@ -239,11 +277,6 @@ if __name__ == '__main__':
                         }
                         results.append(result)
                         
-                        # Log result
-                        logger.info(f"Test case result: Score = {score}")
-                        if eval_result["error"]:
-                            logger.error(f"Error: {eval_result['error']}")
-                        
                         # Rate limiting
                         await asyncio.sleep(1)
                         
@@ -266,6 +299,15 @@ if __name__ == '__main__':
                 task_id: sum(scores) / len(scores)
                 for task_id, scores in task_scores.items()
             }
+            
+            # Log final summary with clear section
+            logger.info(f"\n{'='*50}\nTEST SUMMARY\n{'='*50}")
+            logger.info(f"Total Test Cases: {total_cases}")
+            logger.info(f"Average Score: {average_score:.4f}")
+            logger.info(f"Library Performance:")
+            for lib, score in sorted(library_averages.items(), key=lambda x: x[1], reverse=True):
+                logger.info(f"  {lib}: {score:.4f} ({library_scores[lib].count(1.0)}/{len(library_scores[lib])} successful)")
+            logger.info(f"{'='*50}\n")
             
             # Create detailed results
             final_result = {

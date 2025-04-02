@@ -14,8 +14,19 @@ from bs4 import BeautifulSoup
 from huggingface_hub import snapshot_download
 from tqdm import tqdm
 
-from brainstorm.testing.base import BasePerformanceTest
-from brainstorm.testing.registry import register_test
+# Import from standard location with fallback
+try:
+    from brainstorm.testing.base import BasePerformanceTest
+except ImportError:
+    from brainstorm.testing.modalities.nlp.performance.base_test import BasePerformanceTest
+
+# Import registry with fallback
+try:
+    from brainstorm.testing.registry import register_test
+except ImportError:
+    # Provide a dummy decorator if import fails
+    def register_test(cls):
+        return cls
 
 ActionType = Literal["CLICK", "SELECT", "TYPE"]
 

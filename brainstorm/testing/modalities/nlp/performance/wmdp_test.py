@@ -16,7 +16,11 @@ from datasets import load_dataset
 from tqdm.asyncio import tqdm_asyncio
 import logging
 
-from brainstorm.testing.modalities.nlp.performance.base_test import BasePerformanceTest
+# Import from standard location with fallback
+try:
+    from brainstorm.testing.modalities.nlp.performance.base_test import BasePerformanceTest
+except ImportError:
+    from brainstorm.testing.base import BasePerformanceTest
 
 logger = logging.getLogger(__name__)
 
@@ -189,10 +193,19 @@ class WMDPTest(BasePerformanceTest):
         Returns:
             Dict containing evaluation results
         """
-        # Format choices as A, B, C, D
+        logger = logging.getLogger(__name__)
+        
+        # Log task details with visual separator
+        logger.info(f"\n{'='*50}\nTASK DETAILS\n{'='*50}")
+        logger.info(f"Task ID: {task.task_id}")
+        logger.info(f"Domain: {task.domain}")
+        logger.info(f"Hazard Level: {task.hazard_level or 'Unknown'}")
+        logger.info(f"Question: {task.question}")
+        
+        # Format choices as A, B, C, etc.
         choices_text = ""
         for i, choice in enumerate(task.choices):
-            choices_text += f"{chr(65 + i)}) {choice}  \n"
+            choices_text += f"{chr(65 + i)}. {choice}\n"
             
         # Format prompt
         prompt = self.MULTIPLE_CHOICE_TEMPLATE.format(
@@ -200,8 +213,19 @@ class WMDPTest(BasePerformanceTest):
             choices=choices_text.strip()
         )
         
+        # Log the prompt
+        logger.info(f"\n{'='*50}\nINPUT PROMPT\n{'='*50}")
+        logger.info(f"{prompt}")
+        logger.info(f"{'='*50}\n")
+        
         # Generate response
+        logger.info("Generating model response...")
         response = await self._generate_response(prompt)
+        
+        # Log the model output
+        logger.info(f"\n{'='*50}\nMODEL RESPONSE\n{'='*50}")
+        logger.info(f"{response}")
+        logger.info(f"{'='*50}\n")
         
         # Extract answer
         extracted_answer = self._extract_answer(response)
@@ -209,9 +233,17 @@ class WMDPTest(BasePerformanceTest):
         # Check if correct
         is_correct = extracted_answer == task.correct_answer
         
+        # Log evaluation results
+        logger.info(f"\n{'='*50}\nEVALUATION RESULTS\n{'='*50}")
+        logger.info(f"Extracted Answer: {extracted_answer or 'None'}")
+        logger.info(f"Correct Answer: {task.correct_answer}")
+        logger.info(f"Is Correct: {is_correct}")
+        logger.info(f"{'='*50}\n")
+                
         return {
             "task_id": task.task_id,
             "domain": task.domain,
+            "hazard_level": task.hazard_level,
             "question": task.question,
             "choices": task.choices,
             "correct_answer": task.correct_answer,
@@ -226,12 +258,25 @@ class WMDPTest(BasePerformanceTest):
         Returns:
             Dict containing test results
         """
+        logger = logging.getLogger(__name__)
+        
+        # Log test start with clear separator
+        logger.info(f"\n{'='*50}\nSTARTING WMDP TEST\n{'='*50}")
+        logger.info(f"Test configuration:")
+        logger.info(f"  Domains: {self.domains}")
+        logger.info(f"  Shuffle dataset: {self.shuffle}")
+        logger.info(f"  Maximum concurrent tasks: {self.config.get('max_concurrent', 1)}")
+        logger.info(f"{'='*50}\n")
+        
         # Load dataset
+        logger.info("Loading WMDP dataset...")
         self.load_dataset()
         
         # Select test cases
         num_cases = min(self.config.get("num_test_cases", len(self.tasks)), len(self.tasks))
         test_cases = self.tasks[:num_cases]
+        
+        logger.info(f"Selected {len(test_cases)} test cases for evaluation")
         
         if not test_cases:
             logger.warning("No test cases loaded")
@@ -251,20 +296,16 @@ class WMDPTest(BasePerformanceTest):
                 return await self.evaluate_task(task)
         
         logger.info(f"Running WMDP evaluation on {len(test_cases)} tasks with concurrency {self.config.get('max_concurrent', 1)}")
-        results = await tqdm_asyncio.gather(
-            *[eval_with_semaphore(task) for task in test_cases],
-            desc="Evaluating WMDP tasks"
-        )
+        results = await asyncio.gather(*[eval_with_semaphore(task) for task in test_cases])
         
         # Calculate overall metrics
         total_tasks = len(results)
         correct_tasks = sum(1 for r in results if r["is_correct"])
-        accuracy = correct_tasks / total_tasks if total_tasks > 0 else 0
+        accuracy = correct_tasks / total_tasks if total_tasks else 0
         
         # Calculate domain-specific metrics
         domain_metrics = {}
-        domains = set(r["domain"] for r in results)
-        for domain in domains:
+        for domain in self.domains:
             domain_results = [r for r in results if r["domain"] == domain]
             domain_correct = sum(1 for r in domain_results if r["is_correct"])
             domain_metrics[domain] = {
@@ -273,10 +314,17 @@ class WMDPTest(BasePerformanceTest):
                 "accuracy": domain_correct / len(domain_results) if domain_results else 0
             }
         
-        # Log results
-        logger.info(f"WMDP evaluation completed with accuracy={accuracy:.4f}")
+        # Log final summary with clear visual separator
+        logger.info(f"\n{'='*50}\nTEST SUMMARY\n{'='*50}")
+        logger.info(f"Total Tasks: {total_tasks}")
+        logger.info(f"Correct Tasks: {correct_tasks}")
+        logger.info(f"Overall Accuracy: {accuracy:.4f}")
+        logger.info(f"\nDomain-specific metrics:")
         for domain, metrics in domain_metrics.items():
-            logger.info(f"  {domain}: accuracy={metrics['accuracy']:.4f} ({metrics['correct_tasks']}/{metrics['total_tasks']})")
+            logger.info(f"  {domain}:")
+            logger.info(f"    Accuracy: {metrics['accuracy']:.4f}")
+            logger.info(f"    Total: {metrics['total_tasks']}, Correct: {metrics['correct_tasks']}")
+        logger.info(f"{'='*50}\n")
             
         return {
             "total_tasks": total_tasks,

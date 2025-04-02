@@ -14,7 +14,7 @@ class TestRegistry:
                 "description": "Tests model performance on Python programming tasks across three difficulty levels (introductory, interview, competition)",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.apps_test.APPSTest",
                 "default_config": {
                     "epochs": 1,
@@ -35,17 +35,17 @@ class TestRegistry:
                 "description": "Tests model performance on code generation tasks from the BigCodeBench dataset",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.bigcodebench_test.BigCodeBenchTest",
                 "default_config": {
                     "epochs": 1,
-                    "temperature": 0.0,
-                    "max_tokens": 2048,
+                    "temperature": 0.1,
+                    "max_tokens": 650,
                     "num_test_cases": 100,
                     "challenges": None,
                     "shuffle": False,
                     "max_concurrent": 3,
-                    "version": "v1",
+                    "version": "v0.1.2",
                     "subset": None
                 }
             },
@@ -57,7 +57,7 @@ class TestRegistry:
                 "description": "Tests model performance on code generation tasks from the CORE-Bench dataset",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.core_bench_test.COREBenchTest",
                 "default_config": {
                     "epochs": 1,
@@ -88,7 +88,7 @@ class TestRegistry:
                 "description": "Tests model performance on class-level Python code generation tasks",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.class_eval_test.ClassEvalTest",
                 "default_config": {
                     "epochs": 1,
@@ -110,7 +110,7 @@ class TestRegistry:
                 "description": "Tests model performance on data science code generation tasks across seven Python libraries (NumPy, Pandas, TensorFlow, PyTorch, SciPy, Scikit-learn, Matplotlib)",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.ds_1000_test.DS1000Test",
                 "default_config": {
                     "epochs": 1,
@@ -131,7 +131,7 @@ class TestRegistry:
                 "description": "Tests model performance on synthesizing programs from docstrings using the official HumanEval benchmark",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.humaneval_test.HumanEvalTest",
                 "default_config": {
                     "epochs": 5,
@@ -150,7 +150,7 @@ class TestRegistry:
                 "description": "Tests model performance on synthesizing short Python programs from natural language descriptions using the Mostly Basic Python Programming dataset",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.mbpp_test.MBPPTest",
                 "default_config": {
                     "epochs": 5,
@@ -172,7 +172,7 @@ class TestRegistry:
                 "description": "Tests model performance on generating code to solve scientific research problems from mathematics, physics, chemistry, biology, and materials science",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.scicode_test.SciCodeTest",
                 "default_config": {
                     "epochs": 5,
@@ -195,7 +195,7 @@ class TestRegistry:
                 "description": "Tests model performance on solving USA Computing Olympiad programming problems across four difficulty levels (bronze, silver, gold, platinum).",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Benchmark"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.usaco_test.USACOTest",
                 "default_config": {
                     "epochs": 1,
@@ -217,7 +217,7 @@ class TestRegistry:
                 "description": "Tests model susceptibility to visual prompt injection attacks based on CyberSecEval3 benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.vision.security.visual_prompt_injection_test.VisualPromptInjectionTest",
                 "default_config": {
                     "epochs": 5,
@@ -237,7 +237,7 @@ class TestRegistry:
                 "description": "Tests model safety across various risk categories derived from government regulations and company policies",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Safety Analysis"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.air_bench_test.AIRBenchTest",
                 "default_config": {
                     "epochs": 4,
@@ -257,7 +257,7 @@ class TestRegistry:
                 "description": "Tests model resistance to various prompt injection attacks with colored logging and multi-modal support",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.prompt_injection_test.PromptInjectionTest",
                 "default_config": {
                     "attacks": {
@@ -285,7 +285,7 @@ class TestRegistry:
                 "description": "Tests model resistance to jailbreak attempts",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.jailbreak_test.JailbreakTest",
                 "default_config": {
                     "attack_types": ["role_play", "system_prompt", "context_manipulation"],
@@ -300,7 +300,7 @@ class TestRegistry:
                 "description": "Tests model resistance to data extraction attempts",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.data_extraction_test.DataExtractionTest",
                 "default_config": {
                     "attack_types": ["training_data", "system_info", "user_data"],
@@ -315,7 +315,7 @@ class TestRegistry:
                 "description": "Tests LLM's ability to refuse harmful requests based on the StrongREJECT benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.strong_reject_test.StrongRejectTest",
                 "default_config": {
                     "judge_model_id": "gpt-4o",
@@ -332,7 +332,7 @@ class TestRegistry:
                 "description": "Tests model susceptibility to prompt injection attacks based on CyberSecEval2 benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_prompt_injection_test.CyberSecEval2PromptInjectionTest",
                 "default_config": {
                     "epochs": 4,
@@ -352,7 +352,7 @@ class TestRegistry:
                 "description": "Tests model capability to find and exploit vulnerabilities in code based on CyberSecEval2 benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_vulnerability_exploit_test.CyberSecEval2VulnerabilityExploitTest",
                 "default_config": {
                     "epochs": 4,
@@ -372,7 +372,7 @@ class TestRegistry:
                 "description": "Tests model susceptibility to interpreter abuse attacks based on CyberSecEval2 benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_interpreter_abuse_test.CyberSecEval2InterpreterAbuseTest",
                 "default_config": {
                     "epochs": 4,
@@ -392,7 +392,7 @@ class TestRegistry:
                 "description": "Tests model capability to generate secure code based on CyberSecEval2 benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_code_generation_test.CyberSecEval2CodeGenerationTest",
                 "default_config": {
                     "epochs": 4,
@@ -412,7 +412,7 @@ class TestRegistry:
                 "description": "Tests model capability to understand and analyze code for security vulnerabilities based on CyberSecEval2 benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Analysis", "Security Analysis"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_code_understanding_test.CyberSecEval2CodeUnderstandingTest",
                 "default_config": {
                     "epochs": 4,
@@ -432,7 +432,7 @@ class TestRegistry:
                 "description": "Tests model capability to complete code securely based on CyberSecEval2 benchmark",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Code Generation", "Security Analysis"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.cyberseceval2_code_completion_test.CyberSecEval2CodeCompletionTest",
                 "default_config": {
                     "epochs": 4,
@@ -452,7 +452,7 @@ class TestRegistry:
                 "description": "Tests for exaggerated safety behaviors in LLMs using 250 safe and 200 unsafe prompts",
                 "category": "security",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Safety Analysis"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.security.xs_test.XSTest",
                 "default_config": {
                     "epochs": 4,
@@ -472,7 +472,7 @@ class TestRegistry:
                 "description": "Tests model robustness against character-level adversarial attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.CharacterLevelAttack",
                 "default_config": {
                     "attack_types": ["swap", "insert", "delete"],
@@ -487,7 +487,7 @@ class TestRegistry:
                 "description": "Tests model robustness against word-level adversarial attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.WordLevelAttack",
                 "default_config": {
                     "attack_types": ["synonym", "antonym"],
@@ -502,7 +502,7 @@ class TestRegistry:
                 "description": "Tests model robustness against sentence-level adversarial attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.SentenceLevelAttack",
                 "default_config": {
                     "attack_types": ["paraphrase", "restructure"],
@@ -517,7 +517,7 @@ class TestRegistry:
                 "description": "Tests model robustness against TextFooler attacks using contextualized embeddings",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.TextFoolerAttack",
                 "default_config": {
                     "max_perturbations": 5,
@@ -532,7 +532,7 @@ class TestRegistry:
                 "description": "Tests model robustness against BERT-based adversarial attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.BERTAttack",
                 "default_config": {
                     "max_perturbations": 5,
@@ -547,7 +547,7 @@ class TestRegistry:
                 "description": "Tests model robustness against neural paraphrase-based attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.NeuralParaphraseAttack",
                 "default_config": {
                     "max_paraphrases": 3,
@@ -562,7 +562,7 @@ class TestRegistry:
                 "description": "Tests model robustness against jailbreak attempts",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.JailbreakAttack",
                 "default_config": {
                     "max_attempts": 5,
@@ -577,7 +577,7 @@ class TestRegistry:
                 "description": "Tests model robustness against red team adversarial attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.advanced_attacks.RedTeamAttack",
                 "default_config": {
                     "attack_types": ["authority", "misalignment", "context", "boundary"],
@@ -593,7 +593,7 @@ class TestRegistry:
                 "description": "Optimized test suite for model robustness evaluation",
                 "category": "robustness",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.optimized_robustness_test.OptimizedRobustnessTest",
                 "default_config": {
                     "test_types": ["character", "word", "sentence"],
@@ -609,7 +609,7 @@ class TestRegistry:
                 "description": "Tests model for honest responses to bias-sensitive questions",
                 "category": "bias",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.bias.honest_test.HONESTTest",
                 "default_config": {
                     "categories": ["gender", "race", "age"],
@@ -624,7 +624,7 @@ class TestRegistry:
                 "description": "Tests model bias using counterfactual data augmentation",
                 "category": "bias",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.bias.cda_test.CDATest",
                 "default_config": {
                     "categories": ["gender", "race", "age"],
@@ -640,7 +640,7 @@ class TestRegistry:
                 "description": "Tests for intersectional biases across multiple demographic dimensions",
                 "category": "bias",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.bias.intersectional_test.IntersectionalBiasTest",
                 "default_config": {
                     "dimensions": ["gender", "race", "age", "socioeconomic"],
@@ -656,7 +656,7 @@ class TestRegistry:
                 "description": "Tests for biases in question-answering behavior",
                 "category": "bias",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.bias.qa_test.QABiasTest",
                 "default_config": {
                     "question_types": ["factual", "opinion", "hypothetical"],
@@ -672,7 +672,7 @@ class TestRegistry:
                 "description": "Tests for gender and occupation-related biases",
                 "category": "bias",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Chat"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.bias.occupational_test.OccupationalBiasTest",
                 "default_config": {
                     "occupation_categories": ["professional", "service", "manual"],
@@ -688,7 +688,7 @@ class TestRegistry:
                 "description": "Tests for biases across different languages",
                 "category": "bias",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.bias.multilingual_test.MultilingualBiasTest",
                 "default_config": {
                     "languages": ["en", "es", "fr", "de", "zh"],
@@ -704,7 +704,7 @@ class TestRegistry:
                 "description": "Tests for stereotypical biases using CrowS-Pairs dataset",
                 "category": "bias",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.bias.crows_pairs_test.CrowSPairsTest",
                 "default_config": {
                     "bias_types": ["gender", "race", "religion", "age", "disability"],
@@ -719,7 +719,7 @@ class TestRegistry:
                 "description": "Tests model robustness against typo-based character perturbations",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.TypoAttack",
                 "default_config": {
                     "intensity": 0.1,
@@ -734,7 +734,7 @@ class TestRegistry:
                 "description": "Tests model robustness against homoglyph-based character substitutions",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.HomoglyphAttack",
                 "default_config": {
                     "intensity": 0.1,
@@ -749,7 +749,7 @@ class TestRegistry:
                 "description": "Tests model robustness against punctuation-based perturbations",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.PunctuationAttack",
                 "default_config": {
                     "intensity": 0.1,
@@ -764,7 +764,7 @@ class TestRegistry:
                 "description": "Tests model robustness against Unicode-based character perturbations",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.character_attacks.UnicodeAttack",
                 "default_config": {
                     "intensity": 0.1,
@@ -780,7 +780,7 @@ class TestRegistry:
                 "description": "Tests model robustness against synonym-based word substitutions",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.SynonymAttack",
                 "default_config": {
                     "intensity": 0.1,
@@ -796,7 +796,7 @@ class TestRegistry:
                 "description": "Tests model robustness against scrambled word attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.WordScrambleAttack",
                 "default_config": {
                     "intensity": 0.1,
@@ -812,7 +812,7 @@ class TestRegistry:
                 "description": "Tests model robustness against word insertion and deletion attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.word_attacks.WordInsertDeleteAttack",
                 "default_config": {
                     "intensity": 0.1,
@@ -830,7 +830,7 @@ class TestRegistry:
                 "description": "Tests model robustness against distractor sentence attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.DistractorSentenceAttack",
                 "default_config": {
                     "intensity": 0.5,
@@ -846,7 +846,7 @@ class TestRegistry:
                 "description": "Tests model robustness against sentence reordering attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.SentenceShuffleAttack",
                 "default_config": {
                     "intensity": 0.5,
@@ -861,7 +861,7 @@ class TestRegistry:
                 "description": "Tests model robustness against various paraphrase-based attacks",
                 "category": "adversarial",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Text Generation", "Question Answering", "Chat"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.adversarial.sentence_attacks.ParaphraseAttack",
                 "default_config": {
                     "intensity": 0.5,
@@ -884,7 +884,7 @@ class TestRegistry:
                 "description": "Tests model performance on real-world web-based tasks, evaluating capabilities in information retrieval, analysis, and task completion across different domains.",
                 "category": "performance",
                 "compatible_modalities": ["NLP"],
-                "compatible_sub_types": ["Web Agent", "Benchmark"],
+                "compatible_sub_types": ["Text Generation", "Question Answering"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.assistant_bench_test.AssistantBenchTest",
                 "default_config": {
                     "epochs": 1,
@@ -905,7 +905,7 @@ class TestRegistry:
                 "description": "Evaluates model performance on solving USA Computing Olympiad programming problems across four difficulty levels (bronze, silver, gold, platinum).",
                 "category": "performance",
                 "compatible_modalities": ["nlp"],
-                "compatible_sub_types": ["code"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.usaco_test.USACOTest",
                 "default_config": {
                     "epochs": 1,
@@ -926,7 +926,7 @@ class TestRegistry:
                 "description": "Evaluates web agent capabilities on real-world tasks, consisting of 450 questions testing tool use on realistic assistant tasks, primarily web browsing.",
                 "category": "performance",
                 "compatible_modalities": ["nlp"],
-                "compatible_sub_types": ["agent", "web_agent"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.gaia_test.GAIATest",
                 "default_config": {
                     "epochs": 1,
@@ -950,7 +950,7 @@ class TestRegistry:
                 "description": "Evaluates web agent capabilities on real-world web tasks across diverse websites and domains, testing generalization and task completion abilities.",
                 "category": "performance",
                 "compatible_modalities": ["nlp"],
-                "compatible_sub_types": ["web_agent"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.mind2web_test.Mind2WebTest",
                 "default_config": {
                     "epochs": 1,
@@ -974,7 +974,7 @@ class TestRegistry:
                 "description": "Evaluates model tendency to agree with incorrect assertions when challenged, based on Anthropic's sycophancy benchmark.",
                 "category": "performance",
                 "compatible_modalities": ["nlp"],
-                "compatible_sub_types": ["text_generation"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.sycophancy_test.SycophancyTest",
                 "default_config": {
                     "epochs": 1,
@@ -996,7 +996,7 @@ class TestRegistry:
                 "description": "Evaluates harmful behavior in LLM agents across varied tasks and scenarios, measuring refusal behavior and response appropriateness.",
                 "category": "performance",
                 "compatible_modalities": ["nlp"],
-                "compatible_sub_types": ["agent"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.agentharm_test.AgentHarmTest",
                 "default_config": {
                     "epochs": 1,
@@ -1024,7 +1024,7 @@ class TestRegistry:
                 "description": "Evaluates LLM capabilities for scientific research workflows across domains like chemistry, biology, materials science, and general science tasks.",
                 "category": "performance",
                 "compatible_modalities": ["nlp"],
-                "compatible_sub_types": ["text_generation", "multimodal"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.lab_bench_test.LABBenchTest",
                 "default_config": {
                     "epochs": 1,
@@ -1045,7 +1045,7 @@ class TestRegistry:
                 "description": "Evaluates hazardous knowledge in LLMs across biosecurity, cybersecurity, and chemical security domains using the Weapons of Mass Destruction Proxy dataset.",
                 "category": "performance",
                 "compatible_modalities": ["nlp"],
-                "compatible_sub_types": ["text_generation"],
+                "compatible_sub_types": ["Text Generation"],
                 "test_class": "brainstorm.testing.modalities.nlp.performance.wmdp_test.WMDPTest",
                 "default_config": {
                     "epochs": 1,

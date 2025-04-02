@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Union, Set
 import asyncio
 
-from brainstorm.core.adapters.nlp_adapter import HuggingFaceNLPAdapter
+from brainstorm.core.adapters.nlp_adapter import HuggingFaceNLPAdapter, get_nlp_adapter
 from brainstorm.core.adapters.base_adapter import ModelAdapter
 from brainstorm.core.websocket import manager as websocket_manager
 from brainstorm.testing.registry.registry import test_registry
@@ -425,8 +425,8 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
         # Create model adapter based on settings
         model_settings = test_run_data.model_settings
         if model_settings["modality"].upper() == "NLP":
-            # Always use HuggingFace adapter
-            model_adapter = HuggingFaceNLPAdapter(model_settings)
+            # Use the factory function instead of directly instantiating HuggingFaceNLPAdapter
+            model_adapter = get_nlp_adapter(model_settings)
             await model_adapter.initialize(model_settings)
         else:
             raise ValueError(f"Unsupported modality: {model_settings['modality']}")

@@ -3,15 +3,25 @@ import json
 import os
 import re
 import signal
-import resource
 import sys
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 
+# Platform-specific imports
+try:
+    import resource
+except ImportError:
+    # For Windows compatibility
+    resource = None
+
 import requests
-from brainstorm.testing.modalities.nlp.performance.base_test import BasePerformanceTest
+# Try to import from the standard location, but fall back to the new location if needed
+try:
+    from brainstorm.testing.modalities.nlp.performance.base_test import BasePerformanceTest
+except ImportError:
+    from brainstorm.testing.base import BasePerformanceTest
 
 @dataclass
 class USACOProblem:
@@ -223,104 +233,236 @@ No outside libraries are allowed.
         
         return preamble + code
             
+    def _execute_code(self, code: str, test_input: bytes, timeout: int) -> Tuple[str, str, bool]:
+        """Execute code with timeout.
+        
+        Args:
+            code: Python code to execute
+            test_input: Input data
+            timeout: Timeout in seconds
+            
+        Returns:
+            Tuple of (stdout, stderr, timed_out)
+        """
+        import threading
+        import subprocess
+        import tempfile
+        
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            f.write(code.encode())
+            f.flush()
+            temp_name = f.name
+            
+        # Set resource limits if available (Unix only)
+        def set_memory_limit(preexec_fn, limit_mb):
+            if resource is not None:
+                # Convert MB to bytes
+                limit_bytes = limit_mb * 1024 * 1024
+                resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+        
+        # Memory limit in MB
+        memory_limit = 512
+        
+        # Result container
+        result = {"stdout": "", "stderr": "", "timed_out": False}
+        
+        # Thread to execute code
+        def execute():
+            try:
+                # Only set preexec_fn on Unix systems
+                preexec_fn = None
+                if resource is not None:
+                    preexec_fn = lambda: set_memory_limit(None, memory_limit)
+                
+                # Run the code
+                process = subprocess.Popen(
+                    [sys.executable, temp_name],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=preexec_fn
+                )
+                
+                stdout, stderr = process.communicate(input=test_input, timeout=timeout)
+                result["stdout"] = stdout.decode(errors="replace")
+                result["stderr"] = stderr.decode(errors="replace")
+            except subprocess.TimeoutExpired:
+                result["timed_out"] = True
+                process.kill()
+            except Exception as ex:
+                result["stderr"] = str(ex)
+        
+        # Start thread
+        thread = threading.Thread(target=execute)
+        thread.start()
+        thread.join(timeout + 1)  # Give a little extra time for cleanup
+        
+        # Cleanup
+        try:
+            os.unlink(temp_name)
+        except:
+            pass
+            
+        return result["stdout"], result["stderr"], result["timed_out"]
+            
+    def _clean_output(self, output: str) -> str:
+        """Clean output for comparison.
+        
+        Args:
+            output: Raw output
+            
+        Returns:
+            Cleaned output
+        """
+        if isinstance(output, bytes):
+            output = output.decode(errors="replace")
+            
+        # Remove whitespace
+        output = output.strip()
+        
+        # Remove trailing newlines
+        output = output.rstrip("\n")
+        
+        # Normalize line endings
+        output = output.replace("\r\n", "\n")
+        
+        return output
+            
     def evaluate_problem(self, problem: USACOProblem) -> Dict[str, Any]:
         """Evaluate a single USACO problem.
         
         Args:
-            problem: The USACO problem to evaluate
+            problem: USACO problem to evaluate
             
         Returns:
-            Dict containing evaluation results
+            Evaluation results
         """
-        # Build prompt
-        prompt = self.INITIAL_PROMPT.format(
-            description=problem.description
-        )
+        # Generate prompt
+        system_prompt = "You are a competitive programming assistant for USACO (USA Computing Olympiad) problems."
+        prompt = self.INITIAL_PROMPT.format(description=problem.description)
         
         # Generate code
-        response = self.model.generate(
-            prompt=prompt,
-            temperature=self.config["temperature"],
-            max_tokens=self.config["max_tokens"]
-        )
-        
-        # Extract generated code
-        generated_code = self._extract_code(response.text)
-        
-        # Load test cases
-        test_inputs, test_outputs = self._load_test_cases(problem)
-        
-        # Generate code with resource limits
-        max_secs = problem.time_limit // 1000  # Convert ms to seconds
-        max_bytes = problem.memory_limit * 1024 * 1024  # Convert MB to bytes
-        code = self._generate_code(generated_code, max_secs, max_bytes)
-        
-        # Run test cases
-        test_results = []
-        for i, (test_input, test_output) in enumerate(zip(test_inputs, test_outputs)):
-            # Prepare test environment
-            test_code = f"""
-import sys
-import io
-
-# Capture stdout
-old_stdout = sys.stdout
-sys.stdout = io.StringIO()
-
-# Run solution
-try:
-    {code}
-    output = sys.stdout.getvalue()
-    sys.stdout = old_stdout
-    
-    # Compare output
-    expected = {repr(test_output)}
-    actual = output.strip()
-    
-    if actual == expected:
-        passed = True
-        error = None
-    else:
-        passed = False
-        error = f"Expected: {expected}\\nGot: {actual}"
-        
-except Exception as e:
-    passed = False
-    error = str(e)
-    sys.stdout = old_stdout
-"""
+        try:
+            # Generate code using model
+            output = self.model.generate(
+                system=system_prompt,
+                user=prompt,
+                temperature=self.config.get("temperature", 0.7),
+                max_tokens=self.config.get("max_tokens", 4096)
+            )
             
-            # Run test
-            try:
-                exec(test_code, {}, {})
-                test_results.append({
-                    "test_case": i + 1,
-                    "passed": passed,
-                    "error": error
-                })
-            except Exception as e:
-                test_results.append({
-                    "test_case": i + 1,
-                    "passed": False,
-                    "error": str(e)
-                })
-        
-        # Calculate metrics
-        total_tests = len(test_results)
-        passed_tests = sum(1 for r in test_results if r["passed"])
-        pass_rate = passed_tests / total_tests if total_tests > 0 else 0
-        
-        return {
-            "problem_id": problem.problem_id,
-            "title": problem.title,
-            "difficulty": problem.difficulty,
-            "total_tests": total_tests,
-            "passed_tests": passed_tests,
-            "pass_rate": pass_rate,
-            "generated_code": generated_code,
-            "reference_solution": problem.reference_solution,
-            "test_results": test_results
-        }
+            # Extract code
+            completion = output.completion
+            code = self._extract_code(completion)
+            
+            # Prepare code for execution
+            input_dtype = None
+            if problem.input_format:
+                if "integer" in problem.input_format.lower():
+                    input_dtype = "int"
+                elif "float" in problem.input_format.lower() or "real" in problem.input_format.lower():
+                    input_dtype = "float"
+            
+            code = self._generate_code(code, problem.time_limit, problem.memory_limit)
+            
+            # Load test cases
+            cases = problem.test_cases
+            
+            # If test cases not loaded, load them
+            if not cases:
+                test_assets_path = problem.test_assets_path
+                if test_assets_path.exists() and test_assets_path.is_dir():
+                    files = list(test_assets_path.iterdir())
+                    
+                    # Count test cases
+                    num_tests = 0
+                    for f in files:
+                        if f.name.endswith(".in") or f.name.startswith("I."):
+                            num_tests += 1
+                    
+                    # Load test cases
+                    test_inputs, test_outputs = self._load_test_cases(problem)
+                    
+                    # Store test cases
+                    cases = []
+                    for i in range(len(test_inputs)):
+                        cases.append({"input": test_inputs[i], "output": test_outputs[i]})
+                    
+                    # Update problem
+                    problem.test_cases = cases
+            
+            # Execute code on each test case
+            test_results = []
+            for i, case in enumerate(cases):
+                result = {}
+                
+                # Run code
+                try:
+                    # Execute code with timeout
+                    stdout, stderr, timed_out = self._execute_code(
+                        code, 
+                        case["input"] if isinstance(case["input"], bytes) else case["input"].encode(),
+                        problem.time_limit / 1000
+                    )
+                    
+                    # Process result
+                    result = {
+                        "test_case": i,
+                        "success": False,
+                        "stdout": stdout,
+                        "stderr": stderr,
+                        "timed_out": timed_out
+                    }
+                    
+                    # Compare output with expected
+                    expected = case["output"]
+                    if not timed_out and not stderr:
+                        # Clean output and expected
+                        clean_stdout = self._clean_output(stdout)
+                        clean_expected = self._clean_output(expected)
+                        
+                        # Check if output matches expected
+                        result["success"] = clean_stdout == clean_expected
+                        result["output_match"] = result["success"]
+                    
+                except Exception as e:
+                    result = {
+                        "test_case": i,
+                        "success": False,
+                        "error": str(e),
+                        "timed_out": False
+                    }
+                
+                test_results.append(result)
+            
+            # Aggregate results
+            success_count = sum(1 for r in test_results if r.get("success", False))
+            
+            # Prepare result
+            result = {
+                "problem_id": problem.problem_id,
+                "title": problem.title,
+                "difficulty": problem.difficulty,
+                "success": success_count == len(test_results) and len(test_results) > 0,
+                "success_count": success_count,
+                "total_count": len(test_results),
+                "success_rate": success_count / len(test_results) if test_results else 0,
+                "code": code,
+                "test_results": test_results,
+                "completion": completion
+            }
+            
+            return result
+            
+        except Exception as e:
+            return {
+                "problem_id": problem.problem_id,
+                "title": problem.title,
+                "difficulty": problem.difficulty,
+                "success": False,
+                "error": str(e)
+            }
         
     def run(self) -> Dict[str, Any]:
         """Run the USACO test.
@@ -343,8 +485,8 @@ except Exception as e:
             
         # Calculate overall metrics
         total_problems = len(results)
-        total_tests = sum(r["total_tests"] for r in results)
-        total_passed_tests = sum(r["passed_tests"] for r in results)
+        total_tests = sum(r["total_count"] for r in results)
+        total_passed_tests = sum(r["success_count"] for r in results)
         overall_pass_rate = total_passed_tests / total_tests if total_tests > 0 else 0
         
         # Calculate metrics by difficulty
@@ -352,8 +494,8 @@ except Exception as e:
         for difficulty in ["bronze", "silver", "gold", "platinum"]:
             diff_results = [r for r in results if r["difficulty"] == difficulty]
             if diff_results:
-                diff_tests = sum(r["total_tests"] for r in diff_results)
-                diff_passed = sum(r["passed_tests"] for r in diff_results)
+                diff_tests = sum(r["total_count"] for r in diff_results)
+                diff_passed = sum(r["success_count"] for r in diff_results)
                 difficulty_metrics[difficulty] = {
                     "total_problems": len(diff_results),
                     "total_tests": diff_tests,
