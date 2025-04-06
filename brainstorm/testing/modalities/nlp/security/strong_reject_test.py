@@ -416,6 +416,24 @@ class StrongRejectTest(BaseSecurityTest):
         model_parameters: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Process a single test case."""
+        # Test websocket notification functionality immediately
+        websocket_manager = self.config.get("websocket_manager")
+        test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
+        
+        if websocket_manager and test_run_id:
+            try:
+                logger.info(f"Sending diagnostic notification for test_run_id: {test_run_id}")
+                await websocket_manager.send_notification(test_run_id, {
+                    "type": "diagnostic",
+                    "message": "Test is starting execution",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                logger.info(f"Diagnostic notification sent successfully")
+            except Exception as e:
+                logger.error(f"Error sending diagnostic notification: {e}")
+        else:
+            logger.error(f"Cannot send notifications - websocket_manager: {websocket_manager is not None}, test_run_id: {test_run_id}")
+        
         prompt_modifier = self._get_prompt_modification_fn()
         
         # Check cache first
@@ -435,6 +453,12 @@ class StrongRejectTest(BaseSecurityTest):
             forbidden_prompt = test_input.get("forbidden_prompt", "")
             modified_prompt = prompt_modifier(forbidden_prompt)
             
+            # Send notification for original prompt
+            await self._send_model_input(forbidden_prompt, "original")
+            
+            # Send notification for modified prompt
+            await self._send_model_input(modified_prompt, "modified")
+            
             # Get model output
             try:
                 # Log the inputs
@@ -445,6 +469,9 @@ class StrongRejectTest(BaseSecurityTest):
                 
                 model_output = await self.generate_with_retry(modified_prompt)
                 
+                # Send model output notification
+                await self._send_model_output(model_output)
+                
                 # Log the model output
                 logger.info(f"\n{'='*40}\nMODEL OUTPUT\n{'='*40}")
                 logger.info(f"Model response:\n{model_output}")
@@ -452,6 +479,9 @@ class StrongRejectTest(BaseSecurityTest):
                 
                 # Evaluate the response
                 evaluation = await self._evaluate_response(forbidden_prompt, model_output)
+                
+                # Send evaluation notification
+                await self._send_evaluation_result(evaluation)
                 
                 # Log the judge output and evaluation
                 logger.info(f"\n{'='*40}\nJUDGE EVALUATION\n{'='*40}")
@@ -479,6 +509,14 @@ class StrongRejectTest(BaseSecurityTest):
                     "score": evaluation["strong_reject_score"]
                 }
                 
+                # If jailbreak is successful, send issue found notification
+                if result["is_jailbreak_successful"]:
+                    await self._send_issue_found("jailbreak_found", {
+                        "prompt": modified_prompt,
+                        "output": model_output,
+                        "evaluation": evaluation
+                    })
+                
                 # Cache result
                 self.output_cache.set(cache_key, result)
                 
@@ -502,6 +540,25 @@ class StrongRejectTest(BaseSecurityTest):
         """Run the strong reject test implementation."""
         try:
             self.performance_monitor.start_operation("full_test")
+            
+            # Check WebSocket configuration
+            websocket_manager = self.config.get("websocket_manager")
+            test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
+            if websocket_manager and test_run_id:
+                logger.info(f"[WebSocket] Configured for test_run_id: {test_run_id}")
+                # Try sending a test notification
+                try:
+                    await websocket_manager.send_notification(test_run_id, {
+                        "type": "test_started",
+                        "test_id": self.test_type,
+                        "message": "StrongREJECT test starting",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.info(f"[WebSocket] Successfully sent test_started notification")
+                except Exception as e:
+                    logger.error(f"[WebSocket] Error sending test_started notification: {str(e)}")
+            else:
+                logger.warning(f"[WebSocket] Not configured - websocket_manager: {websocket_manager is not None}, test_run_id: {test_run_id}")
             
             # Reset the scores list for this run
             self.all_scores = []
@@ -644,8 +701,10 @@ class StrongRejectTest(BaseSecurityTest):
         websocket_manager = self.config.get("websocket_manager")
         if websocket_manager:
             try:
-                test_run_id = self.config.get("test_id")
+                # Prefer test_run_id over test_id (test_run_id is the channel ID in frontend)
+                test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
                 if test_run_id:
+                    logger.info(f"Sending progress update via WebSocket to channel: {test_run_id}")
                     await websocket_manager.send_notification(test_run_id, {
                         "type": "test_progress",
                         "test_id": self.test_type,
@@ -655,6 +714,7 @@ class StrongRejectTest(BaseSecurityTest):
                         "details": details or {},
                         "timestamp": datetime.utcnow().isoformat()
                     })
+                    logger.info(f"Progress update sent successfully")
             except Exception as e:
                 logger.error(f"Error sending progress update: {str(e)}")
 
@@ -669,8 +729,10 @@ class StrongRejectTest(BaseSecurityTest):
         websocket_manager = self.config.get("websocket_manager")
         if websocket_manager:
             try:
-                test_run_id = self.config.get("test_id")
+                # Prefer test_run_id over test_id (test_run_id is the channel ID in frontend)
+                test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
                 if test_run_id:
+                    logger.info(f"Sending issue notification via WebSocket to channel: {test_run_id}")
                     await websocket_manager.send_notification(test_run_id, {
                         "type": "issue_found",
                         "test_id": self.test_type,
@@ -678,5 +740,80 @@ class StrongRejectTest(BaseSecurityTest):
                         "details": details or {},
                         "timestamp": datetime.utcnow().isoformat()
                     })
+                    logger.info(f"Issue notification sent successfully")
             except Exception as e:
-                logger.error(f"Error sending issue notification: {str(e)}") 
+                logger.error(f"Error sending issue notification: {str(e)}")
+                
+    async def _send_model_input(self, prompt: str, prompt_type: str = "modified") -> None:
+        """Send a notification with the model input prompt.
+        
+        Args:
+            prompt: The prompt being sent to the model
+            prompt_type: The type of prompt (e.g., 'original', 'modified')
+        """
+        # Use websocket manager if available via config
+        websocket_manager = self.config.get("websocket_manager")
+        if websocket_manager:
+            try:
+                # Prefer test_run_id over test_id (test_run_id is the channel ID in frontend)
+                test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
+                if test_run_id:
+                    logger.info(f"Sending model input notification via WebSocket to channel: {test_run_id}")
+                    await websocket_manager.send_notification(test_run_id, {
+                        "type": "model_input",
+                        "test_id": self.test_type,
+                        "prompt": prompt,
+                        "prompt_type": prompt_type,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.info(f"Model input notification sent successfully")
+            except Exception as e:
+                logger.error(f"Error sending model input notification: {str(e)}")
+                
+    async def _send_model_output(self, output: str) -> None:
+        """Send a notification with the model output.
+        
+        Args:
+            output: The output generated by the model
+        """
+        # Use websocket manager if available via config
+        websocket_manager = self.config.get("websocket_manager")
+        if websocket_manager:
+            try:
+                # Prefer test_run_id over test_id (test_run_id is the channel ID in frontend)
+                test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
+                if test_run_id:
+                    logger.info(f"Sending model output notification via WebSocket to channel: {test_run_id}")
+                    await websocket_manager.send_notification(test_run_id, {
+                        "type": "model_output",
+                        "test_id": self.test_type,
+                        "output": output,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.info(f"Model output notification sent successfully")
+            except Exception as e:
+                logger.error(f"Error sending model output notification: {str(e)}")
+                
+    async def _send_evaluation_result(self, evaluation: Dict[str, Any]) -> None:
+        """Send a notification with the evaluation results.
+        
+        Args:
+            evaluation: The evaluation results
+        """
+        # Use websocket manager if available via config
+        websocket_manager = self.config.get("websocket_manager")
+        if websocket_manager:
+            try:
+                # Prefer test_run_id over test_id (test_run_id is the channel ID in frontend)
+                test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
+                if test_run_id:
+                    logger.info(f"Sending evaluation notification via WebSocket to channel: {test_run_id}")
+                    await websocket_manager.send_notification(test_run_id, {
+                        "type": "evaluation_result",
+                        "test_id": self.test_type,
+                        "evaluation": evaluation,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.info(f"Evaluation notification sent successfully")
+            except Exception as e:
+                logger.error(f"Error sending evaluation notification: {str(e)}") 

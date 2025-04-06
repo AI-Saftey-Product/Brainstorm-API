@@ -428,6 +428,30 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
             # Use the factory function instead of directly instantiating HuggingFaceNLPAdapter
             model_adapter = get_nlp_adapter(model_settings)
             await model_adapter.initialize(model_settings)
+            
+            # Set up WebSocket notification in the model adapter
+            logger.info(f"Setting up WebSocket notification in model adapter for test_run_id: {test_run_id}")
+            
+            # Check if the adapter has the setup_notification method
+            if hasattr(model_adapter, 'setup_notification'):
+                model_adapter.setup_notification(websocket_manager, test_run_id)
+                logger.info(f"WebSocket notification setup completed in model adapter")
+            else:
+                # Set the properties directly
+                model_adapter.websocket_manager = websocket_manager
+                model_adapter.test_run_id = test_run_id
+                logger.info(f"WebSocket notification properties set directly in model adapter")
+                
+            # Send a test notification to verify WebSocket setup
+            try:
+                await websocket_manager.send_notification(test_run_id, {
+                    "type": "adapter_setup",
+                    "message": "Model adapter WebSocket setup complete",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                logger.info(f"Test notification sent successfully")
+            except Exception as e:
+                logger.error(f"Error sending test notification: {str(e)}")
         else:
             raise ValueError(f"Unsupported modality: {model_settings['modality']}")
         
@@ -478,9 +502,11 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
                     **test_info.get("default_config", {}),
                     **test_run_data.parameters.get(test_id, {}),
                     "websocket_manager": websocket_manager,
-                    "test_id": test_id
+                    "test_id": test_id,
+                    "test_run_id": test_run_id
                 }
                 
+                logger.info(f"Initializing test {test_id} with config containing websocket_manager and test_run_id: {test_run_id}")
                 test_instance = test_class(test_config)
                 
                 # Send test start notification

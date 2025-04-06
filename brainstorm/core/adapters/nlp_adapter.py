@@ -35,11 +35,14 @@ class NLPModelAdapter(BaseModelAdapter):
     """Base adapter for NLP models regardless of provider."""
     
     def __init__(self):
+        super().__init__()
         self.client = None
         self.model_config = None
         self.model_type = None
         self.api_key = None
         self.model_id = None
+        self.websocket_manager = None
+        self.test_run_id = None
     
     @abstractmethod
     async def initialize(self, model_config: Dict[str, Any]) -> None:
@@ -81,7 +84,60 @@ class NLPModelAdapter(BaseModelAdapter):
     
     async def _invoke_text_generation(self, prompt: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Invoke text generation model."""
+        # Send model input notification via WebSocket
+        try:
+            if hasattr(self, 'websocket_manager') and self.websocket_manager:
+                from datetime import datetime
+                
+                # Use test_run_id preferentially over test_id for the WebSocket channel
+                channel_id = None
+                if hasattr(self, 'test_run_id') and self.test_run_id:
+                    channel_id = self.test_run_id
+                elif hasattr(self, 'test_id') and self.test_id:
+                    channel_id = self.test_id
+                    
+                if channel_id:
+                    logger.info(f"Sending model input notification via adapter to channel: {channel_id}")
+                    await self.websocket_manager.send_notification(channel_id, {
+                        "type": "model_input",
+                        "model_id": self.model_id,
+                        "test_id": "text_generation",
+                        "prompt": prompt,
+                        "prompt_type": "default",
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.info(f"Model input notification sent via adapter")
+        except Exception as e:
+            logger.error(f"Error sending model input notification from adapter: {str(e)}")
+        
+        # Generate response
         response = await self.generate(prompt, **parameters)
+        
+        # Send model output notification via WebSocket
+        try:
+            if hasattr(self, 'websocket_manager') and self.websocket_manager:
+                from datetime import datetime
+                
+                # Use test_run_id preferentially over test_id for the WebSocket channel
+                channel_id = None
+                if hasattr(self, 'test_run_id') and self.test_run_id:
+                    channel_id = self.test_run_id
+                elif hasattr(self, 'test_id') and self.test_id:
+                    channel_id = self.test_id
+                    
+                if channel_id:
+                    logger.info(f"Sending model output notification via adapter to channel: {channel_id}")
+                    await self.websocket_manager.send_notification(channel_id, {
+                        "type": "model_output",
+                        "model_id": self.model_id,
+                        "test_id": "text_generation",
+                        "output": response,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                    logger.info(f"Model output notification sent via adapter")
+        except Exception as e:
+            logger.error(f"Error sending model output notification from adapter: {str(e)}")
+        
         return {
             "text": response,
             "raw_response": {"generated_text": response}

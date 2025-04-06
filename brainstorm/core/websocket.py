@@ -151,3 +151,41 @@ async def new_test_run_websocket(websocket: WebSocket):
             
     except Exception as e:
         logger.error(f"Error in new test run WebSocket connection: {e}")
+
+@websocket_router.websocket("/ws/tests/debug/{test_run_id}")
+async def debug_websocket_endpoint(websocket: WebSocket, test_run_id: str):
+    """Debugging endpoint for WebSocket testing."""
+    try:
+        await manager.connect(websocket, test_run_id)
+        await websocket.send_json({
+            "type": "debug_connection",
+            "test_run_id": test_run_id,
+            "message": "Debug WebSocket connection established",
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        
+        # Send a sequence of test messages
+        for i in range(1, 4):
+            await asyncio.sleep(2)  # Wait 2 seconds between messages
+            await manager.send_notification(test_run_id, {
+                "type": "debug_message",
+                "sequence": i,
+                "message": f"Debug test message {i}",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            logger.info(f"Sent debug message {i} to test run {test_run_id}")
+        
+        try:
+            while True:
+                # Keep the connection alive and handle incoming messages
+                data = await websocket.receive_json()
+                await websocket.send_json({
+                    "type": "debug_echo",
+                    "test_run_id": test_run_id,
+                    "echo_data": data,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+        except Exception as e:
+            logger.error(f"Error in debug WebSocket connection: {e}")
+    finally:
+        manager.disconnect(websocket, test_run_id)

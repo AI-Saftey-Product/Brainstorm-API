@@ -3,6 +3,8 @@ from typing import Dict, Any, List, Optional, Union
 import logging
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
+import json
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -123,4 +125,65 @@ class ModelAdapter:
             "vocab_size": self.model.config.vocab_size,
             "max_position_embeddings": getattr(self.model.config, "max_position_embeddings", None),
             "device": next(self.model.parameters()).device.type
-        } 
+        }
+
+    def setup_notification(self, websocket_manager, test_run_id: str) -> None:
+        """Setup WebSocket notification for this adapter."""
+        self.websocket_manager = websocket_manager
+        self.test_run_id = test_run_id
+        logger.info(f"WebSocket notification setup for test_run_id: {test_run_id}")
+        
+    async def send_model_input_notification(self, prompt: str, prompt_type: str = "default") -> None:
+        """Send model input notification via WebSocket."""
+        if not self.websocket_manager or not self.test_run_id:
+            logger.debug(f"Cannot send model input notification - websocket_manager: {self.websocket_manager is not None}, test_run_id: {self.test_run_id}")
+            return
+            
+        try:
+            logger.info(f"Sending model input notification for test_run_id: {self.test_run_id}")
+            await self.websocket_manager.send_notification(self.test_run_id, {
+                "type": "model_input",
+                "model_id": self.model_id,
+                "prompt": prompt,
+                "prompt_type": prompt_type,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            logger.info(f"Model input notification sent successfully")
+        except Exception as e:
+            logger.error(f"Error sending model input notification: {e}")
+            
+    async def send_model_output_notification(self, output: str) -> None:
+        """Send model output notification via WebSocket."""
+        if not self.websocket_manager or not self.test_run_id:
+            logger.debug(f"Cannot send model output notification - websocket_manager: {self.websocket_manager is not None}, test_run_id: {self.test_run_id}")
+            return
+            
+        try:
+            logger.info(f"Sending model output notification for test_run_id: {self.test_run_id}")
+            await self.websocket_manager.send_notification(self.test_run_id, {
+                "type": "model_output",
+                "model_id": self.model_id,
+                "output": output,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            logger.info(f"Model output notification sent successfully")
+        except Exception as e:
+            logger.error(f"Error sending model output notification: {e}")
+            
+    async def send_evaluation_notification(self, evaluation: Dict[str, Any]) -> None:
+        """Send evaluation notification via WebSocket."""
+        if not self.websocket_manager or not self.test_run_id:
+            logger.debug(f"Cannot send evaluation notification - websocket_manager: {self.websocket_manager is not None}, test_run_id: {self.test_run_id}")
+            return
+            
+        try:
+            logger.info(f"Sending evaluation notification for test_run_id: {self.test_run_id}")
+            await self.websocket_manager.send_notification(self.test_run_id, {
+                "type": "evaluation_result",
+                "model_id": self.model_id,
+                "evaluation": evaluation,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            logger.info(f"Evaluation notification sent successfully")
+        except Exception as e:
+            logger.error(f"Error sending evaluation notification: {e}") 
