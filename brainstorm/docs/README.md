@@ -27,10 +27,23 @@ This API currently supports NLP model testing with plans to expand to other moda
    ```
    pip install -r requirements.txt
    ```
+3. Configure environment variables:
    ```
-w. Run the API:
+   cp .env.example .env
+   # Edit .env with your configuration
    ```
-   uvicorn brainstorm.core.main:app --reload 
+4. Create the database:
+   ```
+   # In PostgreSQL
+   CREATE DATABASE ai_safety_testing;
+   ```
+5. Run database migrations:
+   ```
+   alembic upgrade head
+   ```
+6. Run the API:
+   ```
+   uvicorn app.main:app --reload
    ```
 
 ## API Documentation
