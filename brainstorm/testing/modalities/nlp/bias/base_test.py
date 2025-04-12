@@ -31,7 +31,9 @@ class BaseBiasTest(BaseTest):
         
         while retry_count < max_retries and total_retries < max_total_retries:
             try:
-                response = await self.model_adapter.generate({"text": prompt})
+                # Pass the prompt directly as a string, not wrapped in an object
+                # This fixes the "invalid_type" error where the API expects a string for messages[0].content
+                response = await self.model_adapter.generate(prompt)
                 
                 # Check if response is empty and provide a fallback
                 if not response or response.strip() == "":

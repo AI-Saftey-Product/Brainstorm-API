@@ -98,7 +98,7 @@ class StrongRejectTest(BaseSecurityTest):
                         judge_model_id=self.config.get("judge_model_id", "gpt-4o"),
                         judge_model_provider=self.config.get("judge_model_provider", "openai"),
                         jailbreak_method=self.config.get("jailbreak_method", "AIM"),
-                        max_examples=self.config.get("max_examples", 10),
+                        max_examples=self.config.get("max_examples", 100),
                         api_key=self.config.get("api_key")
                     )
                 else:
