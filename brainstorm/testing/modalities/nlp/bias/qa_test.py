@@ -24,7 +24,7 @@ class QABiasTest(BaseBiasTest):
         self.data_provider = BiasTestDataProvider()
         self.evaluator = create_evaluator("qa")
         self.test_type = "qa"
-        self.max_samples = config.get("max_samples", 10)
+        self.max_samples = config.get("max_samples", 100)
         self.bias_threshold = config.get("advanced_parameters", {}).get("bias_threshold", 0.7)
         self.results = []  # Initialize an empty list to store results
 
@@ -58,11 +58,23 @@ class QABiasTest(BaseBiasTest):
             # Process each test case
             for i, test_case in enumerate(test_data):
                 current_progress = i + 1
+                
+                # Generate a unique case ID for this test case
+                # We'll use this to link together messages in the UI
+                case_id = f"qa_case_{i+1}"
+                if isinstance(test_case, dict) and "demographic_attributes" in test_case:
+                    bbq_id = test_case["demographic_attributes"].get("bbq_id", "")
+                    if bbq_id:
+                        case_id = f"bbq_{bbq_id}_{i+1}"
+                
                 await self._send_progress_update(
                     current_progress,
                     len(test_data),
                     "processing",
-                    {"message": f"Processing test case {current_progress}/{len(test_data)}"}
+                    {
+                        "message": f"Processing test case {current_progress}/{len(test_data)}",
+                        "case_id": case_id
+                    }
                 )
                 
                 # Handle different test case formats
@@ -95,7 +107,7 @@ class QABiasTest(BaseBiasTest):
                 demographic_group = test_case.get("demographic_group", "unknown") if isinstance(test_case, dict) else "unknown"
                 
                 # Send model input notification with the question
-                await self._send_model_input(question)
+                await self._send_model_input(question, "bbq_question", case_id)
                 
                 # Generate response
                 prompt = f"{context}\nQuestion: {question}" if context else question
@@ -105,7 +117,7 @@ class QABiasTest(BaseBiasTest):
                 )
                 
                 # Send model output notification with the response
-                await self._send_model_output(response)
+                await self._send_model_output(response, case_id)
                 
                 if not response:
                     self.logger.warning(f"No response generated for question: {question}")
@@ -119,8 +131,11 @@ class QABiasTest(BaseBiasTest):
                     demographic_group
                 )
                 
+                # Add case_id to the analysis result
+                analysis_result["case_id"] = case_id
+                
                 # Send evaluation result notification
-                await self._send_evaluation_result(analysis_result)
+                await self._send_evaluation_result(analysis_result, case_id)
                 
                 # Update metrics
                 if analysis_result["is_biased"]:
@@ -131,6 +146,7 @@ class QABiasTest(BaseBiasTest):
                         "issue_found",
                         {
                             "message": f"Found bias in QA test case {current_progress}",
+                            "case_id": case_id,
                             "details": {
                                 "bias_score": analysis_result["bias_score"],
                                 "fairness_score": analysis_result["fairness_score"],
@@ -152,6 +168,7 @@ class QABiasTest(BaseBiasTest):
                         "progress",
                         {
                             "message": f"Processed test case {current_progress}/{len(test_data)}",
+                            "case_id": case_id,
                             "details": {
                                 "bias_score": analysis_result.get("bias_score", 0),
                                 "fairness_score": analysis_result.get("fairness_score", 1.0),
@@ -169,7 +186,7 @@ class QABiasTest(BaseBiasTest):
                 fairness_scores.append(analysis_result["fairness_score"])
                 
                 results.append({
-                    "id": str(current_progress),
+                    "id": case_id,
                     "question": question,
                     "context": context,
                     "response": response,
@@ -589,12 +606,13 @@ class QABiasTest(BaseBiasTest):
             }
         }
 
-    async def _send_model_input(self, prompt: str, prompt_type: str = "bbq_question") -> None:
+    async def _send_model_input(self, prompt: str, prompt_type: str = "bbq_question", case_id: str = None) -> None:
         """Send a notification with the model input prompt.
         
         Args:
             prompt: The prompt being sent to the model
             prompt_type: The type of prompt
+            case_id: Unique identifier for the test case
         """
         # Use websocket manager if available via config
         websocket_manager = self.config.get("websocket_manager")
@@ -604,22 +622,29 @@ class QABiasTest(BaseBiasTest):
                 test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
                 if test_run_id:
                     self.logger.info(f"Sending model input notification via WebSocket to channel: {test_run_id}")
-                    await websocket_manager.send_notification(test_run_id, {
+                    message = {
                         "type": "model_input",
                         "test_id": self.test_type,
                         "prompt": prompt,
                         "prompt_type": prompt_type,
                         "timestamp": datetime.utcnow().isoformat()
-                    })
+                    }
+                    
+                    # Add case_id if provided
+                    if case_id:
+                        message["case_id"] = case_id
+                        
+                    await websocket_manager.send_notification(test_run_id, message)
                     self.logger.info(f"Model input notification sent successfully")
             except Exception as e:
                 self.logger.error(f"Error sending model input notification: {str(e)}")
                 
-    async def _send_model_output(self, output: str) -> None:
+    async def _send_model_output(self, output: str, case_id: str = None) -> None:
         """Send a notification with the model output.
         
         Args:
             output: The output from the model
+            case_id: Unique identifier for the test case
         """
         # Use websocket manager if available via config
         websocket_manager = self.config.get("websocket_manager")
@@ -629,21 +654,28 @@ class QABiasTest(BaseBiasTest):
                 test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
                 if test_run_id:
                     self.logger.info(f"Sending model output notification via WebSocket to channel: {test_run_id}")
-                    await websocket_manager.send_notification(test_run_id, {
+                    message = {
                         "type": "model_output",
                         "test_id": self.test_type,
                         "output": output,
                         "timestamp": datetime.utcnow().isoformat()
-                    })
+                    }
+                    
+                    # Add case_id if provided
+                    if case_id:
+                        message["case_id"] = case_id
+                        
+                    await websocket_manager.send_notification(test_run_id, message)
                     self.logger.info(f"Model output notification sent successfully")
             except Exception as e:
                 self.logger.error(f"Error sending model output notification: {str(e)}")
                 
-    async def _send_evaluation_result(self, evaluation: Dict[str, Any]) -> None:
+    async def _send_evaluation_result(self, evaluation: Dict[str, Any], case_id: str = None) -> None:
         """Send a notification with the evaluation result.
         
         Args:
             evaluation: The evaluation result dict
+            case_id: Unique identifier for the test case
         """
         # Use websocket manager if available via config
         websocket_manager = self.config.get("websocket_manager")
@@ -653,12 +685,18 @@ class QABiasTest(BaseBiasTest):
                 test_run_id = self.config.get("test_run_id") or self.config.get("test_id")
                 if test_run_id:
                     self.logger.info(f"Sending evaluation result notification via WebSocket to channel: {test_run_id}")
-                    await websocket_manager.send_notification(test_run_id, {
+                    message = {
                         "type": "evaluation_result",
                         "test_id": self.test_type,
                         "evaluation": evaluation,
                         "timestamp": datetime.utcnow().isoformat()
-                    })
+                    }
+                    
+                    # Add case_id if provided
+                    if case_id:
+                        message["case_id"] = case_id
+                        
+                    await websocket_manager.send_notification(test_run_id, message)
                     self.logger.info(f"Evaluation result notification sent successfully")
             except Exception as e:
                 self.logger.error(f"Error sending evaluation result notification: {str(e)}") 
