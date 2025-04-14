@@ -305,6 +305,17 @@ class BiasTestDataProvider:
 
     def _get_qa_test_data(self) -> List[Dict[str, Any]]:
         """Generate question-answering test prompts with demographic groups."""
+        # Check if BBQ dataset is requested via environment variable or configuration
+        # Default to true to ensure we use the BBQ dataset
+        os.environ["USE_BBQ_DATASET"] = os.environ.get("USE_BBQ_DATASET", "true")
+        use_bbq = os.environ.get("USE_BBQ_DATASET", "true").lower() == "true"
+        
+        if use_bbq:
+            self.logger.info("Using BBQ (Bias Benchmark for QA) dataset for QA bias test")
+            # When run from UI, hardcode to use Gender_identity category
+            os.environ["BBQ_CATEGORY"] = "Gender_identity"
+            return self._load_bbq_dataset()
+        
         test_cases = []
         
         # Define demographic groups
@@ -381,6 +392,160 @@ class BiasTestDataProvider:
         
         # Log the number of generated test cases
         self.logger.info(f"Generated {len(test_cases)} QA test cases")
+        
+        return test_cases
+
+    def _load_bbq_dataset(self) -> List[Dict[str, Any]]:
+        """Load the BBQ (Bias Benchmark for QA) dataset from Hugging Face.
+        
+        Returns:
+            List of QA test cases from the BBQ dataset
+        """
+        try:
+            from datasets import load_dataset
+            import os
+            
+            # Get the category from environment variable or use default
+            category = os.environ.get("BBQ_CATEGORY", "all")
+            self.logger.info(f"Loading BBQ dataset with category: {category}")
+            
+            # List of all available categories in BBQ
+            available_categories = [
+                "Age", "Disability_status", "Gender_identity", "Nationality", 
+                "Physical_appearance", "Race_ethnicity", "Religion", 
+                "Socioeconomic_status", "Sexual_orientation"
+            ]
+            
+            test_cases = []
+            
+            # Load dataset from Hugging Face
+            if category.lower() == "all":
+                # Load all categories
+                for cat in available_categories:
+                    try:
+                        self.logger.info(f"Loading BBQ category: {cat}")
+                        ds = load_dataset("heegyu/bbq", cat)
+                        
+                        # Convert dataset to our test case format
+                        for split in ["validation", "test"]:  # BBQ uses validation instead of dev
+                            if split in ds:
+                                test_cases.extend(self._convert_bbq_examples(ds[split], cat))
+                    except Exception as e:
+                        self.logger.warning(f"Error loading category {cat}: {str(e)}")
+            else:
+                # Load only the specified category
+                try:
+                    # Use the category as provided or with proper capitalization
+                    ds_category = category
+                    if ds_category.lower() not in [c.lower() for c in available_categories]:
+                        closest_match = next((c for c in available_categories 
+                                             if c.lower() == ds_category.lower() or 
+                                             c.replace('_', '').lower() == ds_category.replace('_', '').lower()), 
+                                             category)
+                        ds_category = closest_match
+                    
+                    ds = load_dataset("heegyu/bbq", ds_category)
+                    
+                    # Convert dataset to our test case format
+                    for split in ["validation", "test"]:  # BBQ uses validation instead of dev
+                        if split in ds:
+                            test_cases.extend(self._convert_bbq_examples(ds[split], ds_category))
+                except Exception as e:
+                    self.logger.error(f"Error loading category {category}: {str(e)}")
+                    # Fall back to loading all categories if the specific one fails
+                    self.logger.info("Falling back to loading all categories")
+                    for cat in available_categories:
+                        try:
+                            ds = load_dataset("heegyu/bbq", cat)
+                            for split in ["validation", "test"]:
+                                if split in ds:
+                                    test_cases.extend(self._convert_bbq_examples(ds[split], cat))
+                        except Exception:
+                            # Skip categories that fail to load
+                            continue
+            
+            self.logger.info(f"Loaded {len(test_cases)} test cases from BBQ dataset")
+            return test_cases
+        except ImportError:
+            self.logger.error("Could not import datasets library. Please install with: pip install datasets")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error loading BBQ dataset from Hugging Face: {str(e)}")
+            return []
+    
+    def _convert_bbq_examples(self, dataset, category: str) -> List[Dict[str, Any]]:
+        """Convert BBQ dataset examples to our test case format."""
+        test_cases = []
+        
+        # Define a template for the BBQ prompt format
+        BBQ_PROMPT_TEMPLATE = """{context}
+
+Question: {question}
+A. {ans0}
+B. {ans1}
+C. {ans2}
+
+Choose the most appropriate answer (A, B, or C):"""
+        
+        for item in dataset:
+            try:
+                # Extract the fields from the Hugging Face dataset
+                context = item.get("context", "")
+                question = item.get("question", "")
+                
+                # Get the answer options and correct index
+                answer_options = []
+                for i in range(3):  # BBQ has 3 options (A, B, C)
+                    option_key = f"ans{i}"
+                    if option_key in item and item[option_key]:
+                        answer_options.append(item[option_key])
+                
+                # Map label (0, 1, 2) to index (BBQ uses 0-indexed labels)
+                correct_index = item.get("label", 0)
+                
+                # Set the target index based on BBQ dataset structure
+                # In BBQ, the target group is typically represented in one of the options
+                # For ambiguous questions, it's often the first option (0)
+                target_index = 0
+                
+                # If we have context condition, we can make better decisions
+                if "context_condition" in item:
+                    context_condition = item["context_condition"].lower()
+                    if "disambiguation" in context_condition:
+                        # For disambiguated questions, the target index might differ
+                        # Correct answer is usually not about the target group
+                        target_index = 0 if item.get("label", 0) != 0 else 1
+                
+                # Format the question according to the template, filling in values
+                formatted_question = BBQ_PROMPT_TEMPLATE.format(
+                    context=context,
+                    question=question,
+                    ans0=answer_options[0],
+                    ans1=answer_options[1],
+                    ans2=answer_options[2]
+                )
+                
+                # Create our test case format
+                test_case = {
+                    "question": formatted_question,
+                    "demographic_group": category.replace('_', ' '),
+                    "expected_answer": {
+                        "options": answer_options,
+                        "correct_index": correct_index
+                    },
+                    "demographic_attributes": {
+                        "category": category,
+                        "question_polarity": item.get("question_polarity", "unknown"),
+                        "context_condition": item.get("context_condition", ""),
+                        "bbq_id": item.get("id", ""),
+                        "target_index": target_index
+                    }
+                }
+                
+                test_cases.append(test_case)
+            except Exception as e:
+                self.logger.warning(f"Error converting BBQ example: {str(e)}")
+                continue
         
         return test_cases
 

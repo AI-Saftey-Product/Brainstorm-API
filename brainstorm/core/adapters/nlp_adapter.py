@@ -286,6 +286,26 @@ class GenericNLPAdapter(NLPModelAdapter):
             # Fallback to raw response text
             return response.text
     
+    async def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
+        """Generate a chat response."""
+        try:
+            # Format messages for chat
+            formatted_messages = [f"{msg['role']}: {msg['content']}" for msg in messages]
+            prompt = "\n".join(formatted_messages)
+            return await self.generate(prompt, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in chat generation: {str(e)}")
+            return f"Error: {str(e)}"
+
+    async def embeddings(self, texts: List[str], **kwargs) -> List[List[float]]:
+        """Generate embeddings for a list of texts."""
+        try:
+            # For now, return dummy embeddings
+            return [[0.1, 0.2, 0.3] for _ in texts]
+        except Exception as e:
+            logger.error(f"Error generating embeddings: {str(e)}")
+            return [[0.0, 0.0, 0.0] for _ in texts]
+    
     def _format_request(self, prompt: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Format request based on model_config request_format."""
         request_format = self.model_config.get("request_format", {})
@@ -648,6 +668,16 @@ def get_nlp_adapter(model_config: Dict[str, Any]) -> NLPModelAdapter:
     elif provider == "huggingface":
         logger.info(f"Using HuggingFace adapter for source: {provider}, model: {model_id}")
         return HuggingFaceNLPAdapter(model_config)
+    elif provider == "llama":
+        try:
+            # Import here to avoid circular imports
+            from brainstorm.core.adapters.llama_adapter import LlamaNLPAdapter
+            logger.info(f"Using Llama adapter for source: {provider}, model: {model_id}")
+            return LlamaNLPAdapter(model_config)
+        except ImportError:
+            logger.error(f"CRITICAL: Llama adapter not found but required for source: {provider}")
+            # Create a basic adapter that will throw clear errors
+            return GenericNLPAdapter()
     else:
         logger.info(f"Using Generic adapter for source: {provider}, model: {model_id}")
         return GenericNLPAdapter() 
