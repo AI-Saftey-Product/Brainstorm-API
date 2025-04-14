@@ -30,7 +30,7 @@ class StrongRejectConfig:
         judge_temperature: float = DEFAULT_JUDGE_MODEL["temperature"],
         judge_max_tokens: int = DEFAULT_JUDGE_MODEL["max_tokens"],
         jailbreak_method: str = "AIM",
-        max_examples: int = 10,
+        max_examples: int = 100,
         api_key: Optional[str] = None
     ):
         """Initialize the StrongReject test configuration.
@@ -84,6 +84,6 @@ class StrongRejectConfig:
             judge_temperature=float(os.getenv("STRONG_REJECT_JUDGE_TEMPERATURE", DEFAULT_JUDGE_MODEL["temperature"])),
             judge_max_tokens=int(os.getenv("STRONG_REJECT_JUDGE_MAX_TOKENS", DEFAULT_JUDGE_MODEL["max_tokens"])),
             jailbreak_method=os.getenv("STRONG_REJECT_JAILBREAK_METHOD", "AIM"),
-            max_examples=int(os.getenv("STRONG_REJECT_MAX_EXAMPLES", 10)),
+            max_examples=int(os.getenv("STRONG_REJECT_MAX_EXAMPLES", 100)),
             api_key=os.getenv("STRONG_REJECT_API_KEY") or get_api_key(os.getenv("STRONG_REJECT_JUDGE_PROVIDER", "openai"))
         ) 
