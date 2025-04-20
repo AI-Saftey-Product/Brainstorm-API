@@ -13,42 +13,7 @@ from brainstorm.core.adapters import get_model_adapter
 logger = logging.getLogger(__name__)
 
 
-async def create_model(db: Session, model_data: ModelCreate) -> Model:
-    """
-    Create a new model in the database.
-    
-    Args:
-        db: Database session
-        model_data: Model creation data
-        
-    Returns:
-        The created model
-    """
-    try:
-        # Create model instance
-        db_model = Model(**model_data.dict())
-        db.add(db_model)
-        db.commit()
-        db.refresh(db_model)
-        return db_model
-    except SQLAlchemyError as e:
-        db.rollback()
-        logger.error(f"Error creating model: {e}")
-        raise ValueError("Failed to create model")
 
-
-async def get_model(db: Session, model_id: UUID) -> Optional[Model]:
-    """
-    Get a model by ID.
-    
-    Args:
-        db: Database session
-        model_id: Model ID
-        
-    Returns:
-        The model if found, None otherwise
-    """
-    return db.query(Model).filter(Model.id == model_id).first()
 
 
 async def get_models(db: Session, skip: int = 0, limit: int = 100) -> List[Model]:

@@ -6,26 +6,23 @@ from datetime import datetime
 from brainstorm.db.base import Base
 
 
-class Model(Base):
+class ModelDefinitionDataModel(Base):
     """Database model for AI models registered in the system."""
-    __tablename__ = "models"
+    __tablename__ = "model_definitions"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    model_id = Column(String, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     
     # Model type information
     modality = Column(String, nullable=False)  # NLP, Vision, etc.
     sub_type = Column(String, nullable=False)  # Text Generation, Image Classification, etc.
-    
+    provider = Column(String, nullable=False)
+    provider_model = Column(String, nullable=False)
+
     # Connection information
-    endpoint_url = Column(String, nullable=True)
-    api_key_id = Column(UUID(as_uuid=True), nullable=True)  # Reference to securely stored key
+    endpoint_url = Column(String, nullable=False)
+    api_key = Column(String, nullable=False)  # For now just the key on its own
     
     # Configuration
-    default_parameters = Column(JSON, nullable=False, default={})
-    
-    # Metadata
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
-    is_active = Column(Boolean, nullable=False, default=True) 
+    parameters = Column(JSON, nullable=False, default={})
