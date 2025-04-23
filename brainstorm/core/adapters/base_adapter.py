@@ -57,11 +57,6 @@ class BaseModelAdapter(ABC):
         pass
 
     @abstractmethod
-    async def initialize(self, model_config: Dict[str, Any]) -> None:
-        """Initialize the model adapter with configuration."""
-        pass
-    
-    @abstractmethod
     async def invoke(self, input_data: Any, parameters: Dict[str, Any]) -> Any:
         """Invoke the model with the given input and parameters."""
         pass

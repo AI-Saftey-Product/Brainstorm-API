@@ -7,12 +7,15 @@ import uuid
 import asyncio  # Added for sleep functionality
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union, Iterator
-
+from brainstorm.core.adapters.openai_adapter import OpenAINLPAdapter
+from brainstorm.core.adapters.llama_adapter import LlamaNLPAdapter
 import httpx
 from pydantic import ValidationError
 
 # Import from huggingface_hub with proper error handling
 from huggingface_hub import InferenceClient
+
+from brainstorm.db.models.model import ModelDefinition, ModelProvider
 
 # Try to import specific types, but handle gracefully if missing
 try:
@@ -368,7 +371,7 @@ class GenericNLPAdapter(NLPModelAdapter):
 class HuggingFaceNLPAdapter(BaseModelAdapter):
     """Adapter for HuggingFace NLP models."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: ModelDefinition):
         """
         Initialize the HuggingFace adapter.
         
@@ -377,21 +380,16 @@ class HuggingFaceNLPAdapter(BaseModelAdapter):
         """
         super().__init__()
         
-        # Early check - refuse to initialize if this is explicitly an OpenAI model
-        source = config.get("source", "").lower()
-        model_id = config.get("model_id", "")
+        # todo: rename
+        model_id = config.provider_model
         
-        if source == "openai" or source == "azure_openai":
-            logger.error(f"Attempted to initialize HuggingFace adapter for an OpenAI source model: {model_id}")
-            raise ValueError(f"Cannot use HuggingFace adapter for OpenAI model: {model_id}")
-            
         # Proceed with normal initialization
         self.model_config = config
         self.model_id = model_id
-        self.api_key = config.get("api_key")
+        self.api_key = config.api_key
         self.base_url = "https://api-inference.huggingface.co/models"
         self.client = None
-        self.supports_chat = "chat" in self.model_id.lower() or "chat" in config.get("model_type", "").lower()
+        self.supports_chat = "chat" in self.model_id.lower()
         self._initialize_client()
         
     def _initialize_client(self):
@@ -405,14 +403,7 @@ class HuggingFaceNLPAdapter(BaseModelAdapter):
         except Exception as e:
             logger.error(f"Failed to initialize HuggingFace client: {str(e)}")
             self.client = None
-    
-    async def initialize(self, model_config: Dict[str, Any]) -> None:
-        """Initialize the adapter with model configuration."""
-        self.model_config = model_config
-        self.model_id = model_config.get("model_id", "")
-        self.api_key = model_config.get("api_key")
-        self._initialize_client()
-    
+
     async def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
         """Generate a chat response."""
         try:
@@ -636,48 +627,21 @@ class HuggingFaceNLPAdapter(BaseModelAdapter):
 
 
 # Factory function to get the right adapter based on model configuration
-def get_nlp_adapter(model_config: Dict[str, Any]) -> NLPModelAdapter:
+def get_nlp_adapter(model_config: ModelDefinition) -> OpenAINLPAdapter | HuggingFaceNLPAdapter | LlamaNLPAdapter | GenericNLPAdapter:
     """Get the appropriate adapter for an NLP model."""
     # First check direct source property
-    provider = model_config.get("source", "").lower()
+    provider = model_config.provider
+    model_id = model_config.model_id
     
-    # If not found, check in model_settings
-    if not provider and "model_settings" in model_config:
-        provider = model_config["model_settings"].get("source", "").lower()
-    
-    # Get model_id for logging purposes
-    model_id = model_config.get("model_id", "")
-    if not model_id and "model_settings" in model_config:
-        model_id = model_config["model_settings"].get("model_id", "")
-    
-    # Log complete model configuration for debugging
-    logger.debug(f"Adapter factory received model_config: {model_config}")
-    logger.info(f"Selecting adapter based on source: '{provider}' for model: {model_id}")
-    
-    # Select adapter based ONLY on the source field
-    if provider == "openai" or provider == "azure_openai":
-        try:
-            # Import here to avoid circular imports
-            from brainstorm.core.adapters.openai_adapter import OpenAINLPAdapter
-            logger.info(f"Using OpenAI adapter for source: {provider}, model: {model_id}")
-            return OpenAINLPAdapter(model_config)
-        except ImportError:
-            logger.error(f"CRITICAL: OpenAI adapter not found but required for source: {provider}")
-            # Create a basic adapter that will throw clear errors
-            return GenericNLPAdapter()
-    elif provider == "huggingface":
-        logger.info(f"Using HuggingFace adapter for source: {provider}, model: {model_id}")
+    if provider == ModelProvider.OPENAI.value or provider == "azure_openai":
+        logger.info(f"Using OpenAI adapter for source: {provider}, model: {model_id}")
+        return OpenAINLPAdapter(model_config)
+    elif provider == ModelProvider.HUGGINGFACE.value:
+        logger.info(f"Using HuggingFace adapter for source: {provider}")
         return HuggingFaceNLPAdapter(model_config)
     elif provider == "llama":
-        try:
-            # Import here to avoid circular imports
-            from brainstorm.core.adapters.llama_adapter import LlamaNLPAdapter
-            logger.info(f"Using Llama adapter for source: {provider}, model: {model_id}")
-            return LlamaNLPAdapter(model_config)
-        except ImportError:
-            logger.error(f"CRITICAL: Llama adapter not found but required for source: {provider}")
-            # Create a basic adapter that will throw clear errors
-            return GenericNLPAdapter()
+        logger.info(f"Using Llama adapter for source: {provider}, model: {model_id}")
+        return LlamaNLPAdapter(model_config)
     else:
         logger.info(f"Using Generic adapter for source: {provider}, model: {model_id}")
-        return GenericNLPAdapter() 
+        return GenericNLPAdapter()

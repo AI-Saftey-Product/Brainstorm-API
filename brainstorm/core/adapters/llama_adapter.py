@@ -4,6 +4,8 @@ import asyncio
 from typing import Any, Dict, List, Optional, Iterator
 import json
 
+from brainstorm.db.models.model import ModelDefinition
+
 try:
     from llamaapi import LlamaAPI
     LLAMA_API_AVAILABLE = True
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 class LlamaNLPAdapter(BaseModelAdapter):
     """Adapter for Llama NLP models."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: ModelDefinition):
         """
         Initialize the Llama adapter.
         
@@ -30,8 +32,8 @@ class LlamaNLPAdapter(BaseModelAdapter):
             raise ImportError("llamaapi package is not installed. Please install it with: pip install llamaapi")
             
         self.model_config = config
-        self.model_id = config.get("model_id", "llama3.1-70b")
-        self.api_key = config.get("api_key")
+        self.model_id = config.provider_model
+        self.api_key = config.api_key
         if not self.api_key:
             raise ValueError("API key is required for Llama API")
             
@@ -45,19 +47,6 @@ class LlamaNLPAdapter(BaseModelAdapter):
         except Exception as e:
             logger.error(f"Failed to initialize Llama client: {str(e)}")
             self.client = None
-    
-    async def initialize(self, model_config: Dict[str, Any]) -> None:
-        """Initialize the adapter with model configuration."""
-        if not LLAMA_API_AVAILABLE:
-            raise ImportError("llamaapi package is not installed. Please install it with: pip install llamaapi")
-            
-        self.model_config = model_config
-        self.model_id = model_config.get("model_id", "llama3.1-70b")
-        self.api_key = model_config.get("api_key")
-        if not self.api_key:
-            raise ValueError("API key is required for Llama API")
-            
-        self._initialize_client()
     
     async def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
         """Generate a chat response."""

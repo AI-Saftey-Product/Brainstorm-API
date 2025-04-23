@@ -1,21 +1,19 @@
 """OpenAI adapter for making API calls to OpenAI models."""
 import logging
-import asyncio
 from typing import Any, Dict, List, Optional, Iterator
 
-import httpx
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion
-from openai.types.completion import Completion
 
 from brainstorm.core.adapters.base_adapter import BaseModelAdapter
+from brainstorm.db.models.model import ModelDefinition
 
 logger = logging.getLogger(__name__)
+
 
 class OpenAINLPAdapter(BaseModelAdapter):
     """Adapter for OpenAI NLP models."""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, model_config: ModelDefinition):
         """
         Initialize the OpenAI adapter.
         
@@ -23,14 +21,16 @@ class OpenAINLPAdapter(BaseModelAdapter):
             config: Configuration dictionary containing model settings
         """
         super().__init__()
-        self.model_config = config
-        self.model_id = config.get("model_id", "gpt-3.5-turbo")
-        self.api_key = config.get("api_key")
-        self.organization_id = config.get("organization_id")
+        self.model_config = model_config
+        # todo: fix inconsistent naming
+        self.model_id = model_config.provider_model
+        self.api_key = model_config.api_key
+        # todo: will be done via relation to Users
+        self.organization_id = "TBD"
         self.client = None
         self.is_chat_model = self._is_chat_model(self.model_id)
         self._initialize_client()
-        
+
     def _is_chat_model(self, model_id: str) -> bool:
         """Determine if the model is a chat model based on its ID."""
         chat_models = [
@@ -49,15 +49,6 @@ class OpenAINLPAdapter(BaseModelAdapter):
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {str(e)}")
             self.client = None
-    
-    async def initialize(self, model_config: Dict[str, Any]) -> None:
-        """Initialize the adapter with model configuration."""
-        self.model_config = model_config
-        self.model_id = model_config.get("model_id", "gpt-3.5-turbo")
-        self.api_key = model_config.get("api_key")
-        self.organization_id = model_config.get("organization_id")
-        self.is_chat_model = self._is_chat_model(self.model_id)
-        self._initialize_client()
     
     async def chat(self, messages: List[Dict[str, str]], **kwargs) -> str:
         """Generate a chat response."""
@@ -233,7 +224,6 @@ class OpenAINLPAdapter(BaseModelAdapter):
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty
             )
-            
             return response.choices[0].message.content
             
         except Exception as e:
@@ -263,7 +253,7 @@ class OpenAINLPAdapter(BaseModelAdapter):
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty
             )
-            
+
             return response.choices[0].text
             
         except Exception as e:

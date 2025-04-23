@@ -1,49 +1,14 @@
+import json
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field, validator, ConfigDict, field_validator, Json
+from pydantic import BaseModel, Field, validator, ConfigDict, field_validator, Json, field_serializer
 from enum import Enum
 
-
-class ModelModality(str, Enum):
-    """
-    Model modalities, commented out ones may not be implemented yet
-    """
-    NLP = "NLP"
-    # VISION = "Vision"
-    # AUDIO = "Audio"
-    # MULTIMODAL = "Multimodal"
-    # TABULAR = "Tabular"
+from brainstorm.db.models.model import ModelModality, ModelSubType, ModelProvider
 
 
-class ModelSubType(str, Enum):
-    """
-    Model subtypes, commented out ones may not be implemented yet
-    """
-    # TEXT_CLASSIFICATION = "Text Classification"
-    # TOKEN_CLASSIFICATION = "Token Classification"
-    # TABLE_QUESTION_ANSWERING = "Table Question Answering"
-    # QUESTION_ANSWERING = "Question Answering"
-    # ZERO_SHOT_CLASSIFICATION = "Zero-Shot Classification"
-    # TRANSLATION = "Translation"
-    # SUMMARIZATION = "Summarization"
-    # FEATURE_EXTRACTION = "Feature Extraction"
-    TEXT_GENERATION = "Text Generation"
-    # TEXT2TEXT_GENERATION = "Text2Text Generation"
-    # FILL_MASK = "Fill-Mask"
-    # SENTENCE_SIMILARITY = "Sentence Similarity"
-
-
-class ModelProvider(str, Enum):
-    """
-    Providers. Commented ones may not be implemented yet
-    """
-    # HUGGINGFACE = "HuggingFace"
-    OPENAI = "OpenAI"
-    # ANTHROPIC = "Anthropic"
-
-
-class ModelDefinition(BaseModel):
+class PydanticModelDefinition(BaseModel):
     """API schema for Model. Includes validation. Whether it should be 1:1 as data model is TBD."""
     model_id: str
     name: str
@@ -57,11 +22,22 @@ class ModelDefinition(BaseModel):
     endpoint_url: str
     api_key: str
 
-    parameters: Json = Field(default_factory=dict)
+    parameters: Optional[Dict[str, Any]] = {}
 
     # todo: mapping for supported providers vs modalities vs subtypes
 
     class Config:
         orm_mode = True
 
-ModelDefinition.model_rebuild()
+    @field_validator('parameters', mode='before')
+    @classmethod
+    def parse_json_if_needed(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                raise ValueError("Invalid JSON string")
+        return v
+
+
+PydanticModelDefinition.model_rebuild()
