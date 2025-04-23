@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost",
         "http://localhost:3000",  # React default port
+        "http://localhost:3001",  # React default port
         "http://localhost:8000",  # FastAPI default port
         "http://127.0.0.1:8000",
         "http://127.0.0.1:3000"
@@ -39,6 +40,8 @@ class Settings(BaseSettings):
     
     # Storage
     STORAGE_PATH: str = "./storage"
+
+    POSTGRES_HOST: str = "postgresql://user:password@localhost:5432/brainstorm_test_api_local"
     
     # Don't load from .env files
     # class Config:

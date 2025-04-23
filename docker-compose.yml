@@ -1,0 +1,18 @@
+version: '1.0'
+
+services:
+  postgres:
+    image: postgres:17.3-bullseye
+    container_name: local_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: brainstorm_test_api_local
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_local_brainstorm:/var/lib/postgresql/data
+
+volumes:
+  postgres_local_brainstorm:
