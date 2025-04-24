@@ -3,31 +3,18 @@ from sqlalchemy import Column, String, DateTime, JSON, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from datetime import datetime
 
+from sqlalchemy.orm import relationship
+
 from brainstorm.db.base import Base
 
-
 class TestRun(Base):
-    """Database model for test runs."""
+    """Database model for AI models registered in the system."""
     __tablename__ = "test_runs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    model_id = Column(String, nullable=False)  # Changed from UUID to String to support frontend model ids
-    
-    # Tests being run
-    test_ids = Column(ARRAY(String), nullable=False)
-    
-    # Run configuration
-    model_parameters = Column(JSON, nullable=False, default={})
-    test_parameters = Column(JSON, nullable=False, default={})
-    
-    # Status information
-    status = Column(String, nullable=False, default="pending")  # pending, running, completed, failed
-    start_time = Column(DateTime, nullable=True)
-    end_time = Column(DateTime, nullable=True)
-    
-    # Results (summary)
-    summary_results = Column(JSON, nullable=True)
-    
-    # Metadata
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow) 
+    test_run_id = Column(String, primary_key=True)
+    test_ids = Column(ARRAY(String))
+    test_parameters = Column(JSON, nullable=True, default={})
+    test_run_results = Column(JSON, nullable=True, default={})
+
+    model_id = Column(String, ForeignKey('model_definitions.model_id'))
+    model_definition = relationship("ModelDefinition", back_populates=__tablename__)

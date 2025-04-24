@@ -5,8 +5,10 @@ import traceback
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-
+from sqlalchemy import select
 from brainstorm.core.services import test_service
+from brainstorm.db.models.model import ModelDefinition
+from brainstorm.db.models.test_run import TestRun
 
 logger = logging.getLogger(__name__)
 
@@ -31,61 +33,6 @@ from brainstorm.testing.registry import test_registry
 
 
 router = APIRouter()
-
-
-@router.get("/registry")
-async def get_test_registry(
-    modality: Optional[str] = Query(None, description="Filter tests by modality (e.g., 'NLP', 'Vision')"),
-    model_type: Optional[str] = Query(None, description="Filter tests by model type/sub-type (e.g., 'Text Generation', 'Question Answering')"),
-    category: Optional[str] = Query(None, description="Filter tests by category (e.g., 'bias', 'toxicity', 'robustness')"),
-    include_config: bool = Query(False, description="Include default configuration for each test")
-):
-    """
-    Get the test registry, optionally filtered by modality, model type, and category.
-    
-    - **modality**: Filter tests by modality (e.g., 'NLP', 'Vision')
-    - **model_type**: Filter tests by model type/sub-type (e.g., 'Text Generation', 'Question Answering')
-    - **category**: Filter tests by category (e.g., 'bias', 'toxicity', 'robustness')
-    - **include_config**: Whether to include default configuration in the response
-    
-    The frontend should call this endpoint with both modality and model_type to get
-    tests specifically applicable to a particular model.
-    """
-    try:
-        logger.debug(f"Getting test registry with filters:")
-        logger.debug(f"  modality: {modality}")
-        logger.debug(f"  model_type: {model_type}")
-        logger.debug(f"  category: {category}")
-        logger.debug(f"  include_config: {include_config}")
-        
-        tests = await get_registry(modality, model_type, category)
-        logger.debug(f"Found {len(tests)} tests in registry")
-        logger.debug(f"Test IDs: {list(tests.keys())}")
-        
-        # If include_config is False, remove the default_config and parameter_schema from the response
-        if not include_config:
-            logger.debug("Removing config and schema from response")
-            for test_id in tests:
-                tests[test_id].pop("default_config", None)
-                tests[test_id].pop("parameter_schema", None)
-        
-        response = {
-            "tests": tests, 
-            "count": len(tests),
-            "filters": {
-                "modality": modality,
-                "model_type": model_type,
-                "category": category
-            }
-        }
-        
-        logger.debug(f"Returning response with {len(tests)} tests")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error retrieving test registry: {str(e)}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Error retrieving test registry: {str(e)}")
 
 
 @router.get("/model-tests")
@@ -150,14 +97,14 @@ async def get_model_specific_tests(
         return response
         
     except Exception as e:
-        logger.error(f"Error retrieving model-specific tests: {str(e)}")
-        logger.error(traceback.format_exc())
+        logger.exception(f"Error retrieving model-specific tests: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error retrieving model-specific tests: {str(e)}")
 
 
 @router.post("/run", status_code=201)
 async def create_test_run(
-    test_run_data: TestRunCreate
+    test_run_data: TestRunCreate,
+    db: Session = Depends(get_db),
 ):
     """
     Create a new test run.
@@ -167,13 +114,7 @@ async def create_test_run(
     {
       "test_run_id": "uuid-from-websocket-connection",
       "test_ids": ["prompt_injection_test"],
-      "model_settings": {
-        "model_id": "gpt2",
-        "modality": "NLP",
-        "sub_type": "Text Generation", 
-        "source": "huggingface",
-        "api_key": "your-api-key"
-      },
+      "model_id": "model_id",
       "parameters": {
         "prompt_injection_test": {
           "max_samples": 100
@@ -193,19 +134,33 @@ async def create_test_run(
     a test_run_id, then provide that ID when creating a test run.
     """
     try:
-        # Check if test_run_id is provided
-        if not test_run_data.test_run_id:
-            raise ValueError("test_run_id is required. Connect to WebSocket endpoint at /ws/tests first to obtain an ID.")
+        stmt = select(ModelDefinition).filter_by(model_id=test_run_data.model_id)
+        model_definition = db.execute(stmt).scalars().first()
             
-        test_run = await create_run(test_run_data)
-        
-        # Format the response with the expected structure for the frontend
-        return {
+        test_run = await create_run(
+            test_run_data=test_run_data,
+            model_definition=model_definition
+        )
+
+        test_run_results = {
             "task_id": str(test_run["id"]),
             "status": test_run["status"],
             "message": "Test run created successfully",
             "test_run": test_run
         }
+
+        db_test_run = TestRun(
+            test_run_id=test_run_data.test_run_id,
+            test_ids=test_run_data.test_ids,
+            test_parameters=test_run_data.parameters,
+            test_run_results=test_run_results,
+            model_id=test_run_data.model_id,
+        )
+        db.add(db_test_run)
+        db.commit()
+
+        # Format the response with the expected structure for the frontend
+        return test_run_results
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

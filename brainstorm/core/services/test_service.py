@@ -8,9 +8,11 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Union, Set
 import asyncio
 
+from brainstorm.core.adapters import get_model_adapter
 from brainstorm.core.adapters.nlp_adapter import HuggingFaceNLPAdapter, get_nlp_adapter
 from brainstorm.core.adapters.base_adapter import ModelAdapter
 from brainstorm.core.websocket import manager as websocket_manager
+from brainstorm.db.models.model import ModelDefinition
 from brainstorm.testing.registry.registry import test_registry
 from brainstorm.testing.modalities.nlp.bias.occupational_test import OccupationalBiasTest
 from brainstorm.testing.modalities.nlp.prompt_injection_test import PromptInjectionTest
@@ -402,11 +404,11 @@ def _serialize_datetime(obj: Any) -> Any:
         return [_serialize_datetime(item) for item in obj]
     return obj
 
-async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
+async def create_test_run(test_run_data: TestRunCreate, model_definition: ModelDefinition) -> Dict[str, Any]:
     """Create a new test run."""
     try:
         # Generate test run ID if not provided
-        test_run_id = test_run_data.test_run_id or str(uuid.uuid4())
+        test_run_id = test_run_data.test_run_id
         
         # Initialize test run
         test_run = {
@@ -423,38 +425,32 @@ async def create_test_run(test_run_data: TestRunCreate) -> Dict[str, Any]:
         }
         
         # Create model adapter based on settings
-        model_settings = test_run_data.model_settings
-        if model_settings["modality"].upper() == "NLP":
-            # Use the factory function instead of directly instantiating HuggingFaceNLPAdapter
-            model_adapter = get_nlp_adapter(model_settings)
-            await model_adapter.initialize(model_settings)
-            
-            # Set up WebSocket notification in the model adapter
-            logger.info(f"Setting up WebSocket notification in model adapter for test_run_id: {test_run_id}")
-            
-            # Check if the adapter has the setup_notification method
-            if hasattr(model_adapter, 'setup_notification'):
-                model_adapter.setup_notification(websocket_manager, test_run_id)
-                logger.info(f"WebSocket notification setup completed in model adapter")
-            else:
-                # Set the properties directly
-                model_adapter.websocket_manager = websocket_manager
-                model_adapter.test_run_id = test_run_id
-                logger.info(f"WebSocket notification properties set directly in model adapter")
-                
-            # Send a test notification to verify WebSocket setup
-            try:
-                await websocket_manager.send_notification(test_run_id, {
-                    "type": "adapter_setup",
-                    "message": "Model adapter WebSocket setup complete",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                logger.info(f"Test notification sent successfully")
-            except Exception as e:
-                logger.error(f"Error sending test notification: {str(e)}")
+        model_adapter = get_model_adapter(model_definition)
+
+        # Set up WebSocket notification in the model adapter
+        logger.info(f"Setting up WebSocket notification in model adapter for test_run_id: {test_run_id}")
+
+        # Check if the adapter has the setup_notification method
+        if hasattr(model_adapter, 'setup_notification'):
+            model_adapter.setup_notification(websocket_manager, test_run_id)
+            logger.info(f"WebSocket notification setup completed in model adapter")
         else:
-            raise ValueError(f"Unsupported modality: {model_settings['modality']}")
-        
+            # Set the properties directly
+            model_adapter.websocket_manager = websocket_manager
+            model_adapter.test_run_id = test_run_id
+            logger.info(f"WebSocket notification properties set directly in model adapter")
+
+        # Send a test notification to verify WebSocket setup
+        try:
+            await websocket_manager.send_notification(test_run_id, {
+                "type": "adapter_setup",
+                "message": "Model adapter WebSocket setup complete",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            logger.info(f"Test notification sent successfully")
+        except Exception as e:
+            logger.error(f"Error sending test notification: {str(e)}")
+
         # Track failed tests
         failed_tests = 0
         
