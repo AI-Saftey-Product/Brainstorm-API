@@ -51,19 +51,11 @@ class TestResultResponse(BaseModel):
 
 class TestRunCreate(BaseModel):
     """Schema for creating a new test run."""
+    test_run_id: str
     test_ids: List[str]
-    model_settings: Dict[str, Any]
+    model_id: str
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    test_run_id: Optional[str] = None
-    
-    @field_validator("model_settings")
-    @classmethod
-    def validate_model_settings(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate the model settings."""
-        if not v.get("model_id"):
-            raise ValueError("model_id is required in model_settings")
-        return v
-    
+
     @field_validator("test_ids")
     @classmethod
     def validate_test_ids(cls, v: List[str]) -> List[str]:
