@@ -136,7 +136,7 @@ async def create_test_run(
     try:
         stmt = select(ModelDefinition).filter_by(model_id=test_run_data.model_id)
         model_definition = db.execute(stmt).scalars().first()
-            
+
         test_run = await create_run(
             test_run_data=test_run_data,
             model_definition=model_definition
@@ -162,50 +162,25 @@ async def create_test_run(
         # Format the response with the expected structure for the frontend
         return test_run_results
     except ValueError as e:
+        logger.exception()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.exception(f"Error creating test run: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating test run: {str(e)}")
 
 
-@router.get("/runs")
+@router.get("/get_test_runs")
 async def get_test_runs(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100)
+        test_run_id: Optional[str] = None,
+        db: Session = Depends(get_db),
 ):
     """
-    Get a list of test runs.
+    Get a list of models.
     """
-    test_runs = await get_runs(skip, limit)
-    return {"test_runs": test_runs, "count": len(test_runs)}
+    stmt = select(TestRun)
 
+    if test_run_id:
+        stmt = stmt.filter_by(test_run_id=test_run_id)
 
-@router.get("/runs/{test_run_id}")
-async def get_test_run(
-    test_run_id: UUID
-):
-    """
-    Get a test run by ID.
-    """
-    test_run = await get_run(test_run_id)
-    if not test_run:
-        raise HTTPException(status_code=404, detail=f"Test run with ID {test_run_id} not found")
-    return test_run
-
-
-@router.get("/runs/{test_run_id}/results")
-async def get_test_results(
-    test_run_id: UUID
-):
-    """
-    Get test results for a test run.
-    """
-    # First check if the test run exists
-    test_run = await get_run(test_run_id)
-    if not test_run:
-        raise HTTPException(status_code=404, detail=f"Test run with ID {test_run_id} not found")
-    
-    results = await get_results(test_run_id)
-    return {"results": results, "count": len(results)}
-
-
-
+    test_runs = db.execute(stmt).scalars().all()
+    return test_runs

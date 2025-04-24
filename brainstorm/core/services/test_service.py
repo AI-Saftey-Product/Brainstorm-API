@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional, Union, Set
 import asyncio
 
+from brainstorm.api.v1.schemas.test import TestRunCreate
 from brainstorm.core.adapters import get_model_adapter
 from brainstorm.core.adapters.nlp_adapter import HuggingFaceNLPAdapter, get_nlp_adapter
 from brainstorm.core.adapters.base_adapter import ModelAdapter
@@ -388,11 +389,6 @@ async def run_bias_test(
 
 from pydantic import BaseModel
 
-class TestRunCreate(BaseModel):
-    test_run_id: Optional[str]
-    test_ids: List[str]
-    model_settings: Dict[str, Any]
-    parameters: Optional[Dict[str, Any]]
 
 def _serialize_datetime(obj: Any) -> Any:
     """Recursively serialize datetime objects in a dictionary or list."""
@@ -403,6 +399,7 @@ def _serialize_datetime(obj: Any) -> Any:
     elif isinstance(obj, list):
         return [_serialize_datetime(item) for item in obj]
     return obj
+
 
 async def create_test_run(test_run_data: TestRunCreate, model_definition: ModelDefinition) -> Dict[str, Any]:
     """Create a new test run."""
@@ -420,8 +417,7 @@ async def create_test_run(test_run_data: TestRunCreate, model_definition: ModelD
             "failed_tests": 0,
             "results": [],
             "created_at": datetime.utcnow().isoformat(),
-            "model_settings": test_run_data.model_settings,
-            "parameters": test_run_data.parameters or {}
+            "parameters": test_run_data.parameters
         }
         
         # Create model adapter based on settings
@@ -518,7 +514,11 @@ async def create_test_run(test_run_data: TestRunCreate, model_definition: ModelD
                 await websocket_manager.send_notification(test_run_id, start_message)
                 
                 # Run test with both model_adapter and model_parameters
-                result = await test_instance.run_test(model_adapter, test_run_data.model_settings)
+                # todo: I think as per current architecture the test run relates to one model definition only and that
+                #  model definition contains all required model parameters, which should be then materialised inside
+                #  model adapter calls to the relevant APIs. However refactoring that seems premature right now so
+                #  just passing empty dict instead.
+                result = await test_instance.run_test(model_adapter, model_parameters={})
                 
                 # Serialize datetime objects in the result
                 serialized_result = _serialize_datetime(result)

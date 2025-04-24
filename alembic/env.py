@@ -3,7 +3,10 @@ from brainstorm.core.config import settings
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from brainstorm.db.base import Base, engine
+
+# THESE ARE NEEDED FOR BASE TO GET UPDATED BEFORE MIGRATIONS ARE CREATED
 import brainstorm.db.models.model
+import brainstorm.db.models.test_run
 
 from alembic import context
 

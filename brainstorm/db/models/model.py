@@ -7,6 +7,8 @@ from sqlalchemy import Column, String, DateTime, JSON, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 
+from sqlalchemy.orm import relationship
+
 from brainstorm.db.base import Base
 from sqlalchemy import Enum as SQLEnum
 
@@ -70,3 +72,5 @@ class ModelDefinition(Base):
 
     # Configuration
     parameters = Column(JSON, nullable=True, default={})
+
+    test_runs = relationship("TestRun", back_populates="model_definition")
