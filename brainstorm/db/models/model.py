@@ -50,6 +50,7 @@ class ModelProvider(str, Enum):
     OPENAI = "OPENAI"
     # ANTHROPIC = "Anthropic"
     LLAMA = "LLAMA"
+    GCP_MAAS = "GCP_MAAS"
 
 
 class ModelDefinition(Base):
