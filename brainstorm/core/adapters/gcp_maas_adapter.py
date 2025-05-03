@@ -9,7 +9,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-class GCP_MAAS_NLPAdapter(BaseModelAdapter):
+class GCP_MAAS_NLPAdapter():
     """Adapter for Llama NLP models."""
     
     def __init__(self, config: ModelDefinition):
@@ -46,7 +46,7 @@ class GCP_MAAS_NLPAdapter(BaseModelAdapter):
             "messages": [
                 {
                     "role": "user",
-                    "content": "Hello!"
+                    "content": prompt
                 }
             ]
         }

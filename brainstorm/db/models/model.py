@@ -75,3 +75,5 @@ class ModelDefinition(Base):
     parameters = Column(JSON, nullable=True, default={})
 
     test_runs = relationship("TestRun", back_populates="model_definition")
+
+    eval_definitions = relationship("EvalDefinition", back_populates="model_definition")

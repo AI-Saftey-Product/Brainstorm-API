@@ -23,7 +23,7 @@ class OpenAINLPAdapter(BaseModelAdapter):
         super().__init__()
         self.model_config = model_config
         # todo: fix inconsistent naming
-        self.model_id = model_config.provider_model
+        self.model_id = model_config.provider_model.lower()
         self.api_key = model_config.api_key
         # todo: will be done via relation to Users
         self.organization_id = "TBD"
@@ -35,7 +35,7 @@ class OpenAINLPAdapter(BaseModelAdapter):
         """Determine if the model is a chat model based on its ID."""
         chat_models = [
             "gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-3.5-turbo", 
-            "gpt-35-turbo", "gpt4", "gpt-4o", "claude"
+            "gpt-35-turbo", "gpt4", "gpt-4o", "claude", 'gpt-4o-mini'
         ]
         return any(model in model_id.lower() for model in chat_models)
         
@@ -44,7 +44,7 @@ class OpenAINLPAdapter(BaseModelAdapter):
         try:
             self.client = AsyncOpenAI(
                 api_key=self.api_key,
-                organization=self.organization_id
+                # organization=self.organization_id
             )
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {str(e)}")

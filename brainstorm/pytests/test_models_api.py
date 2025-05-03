@@ -16,7 +16,7 @@ def test_model_creation_and_listing():
         'modality': 'NLP',
         'sub_type': "TEXT_GENERATION",
         'provider': 'OPENAI',  # this ends up being called provider not source
-        'provider_model': 'GPT-3.5-Turbo',
+        'provider_model': 'gpt-4o-mini',
         'endpoint_url': 'no_url',
         'api_key': 'openapi_key_placeholder',
         'parameters': json.dumps({"temperature": 0.7})

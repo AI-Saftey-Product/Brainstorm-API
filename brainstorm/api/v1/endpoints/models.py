@@ -59,6 +59,7 @@ async def create_or_update_model(
     - If model with a given ID already exists we simply update it with definition we received
     """
     try:
+        logger.info(model_definition)
 
         db_model = ModelDefinition(**model_definition.dict())
 
@@ -67,6 +68,8 @@ async def create_or_update_model(
 
         if not existing:
             db.add(db_model)
+        else:
+            db.merge(db_model)
 
         db.commit()
         return Response(

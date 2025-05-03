@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     STORAGE_PATH: str = "./storage"
 
     POSTGRES_HOST: str = "postgresql://user:password@localhost:5432/brainstorm_test_api_local"
+    DATA_BUCKET: str = "eval_datasets_store"
     
     # Don't load from .env files
     # class Config:
