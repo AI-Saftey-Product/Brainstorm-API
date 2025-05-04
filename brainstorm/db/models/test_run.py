@@ -16,5 +16,5 @@ class TestRun(Base):
     test_parameters = Column(JSON, nullable=True, default={})
     test_run_results = Column(JSON, nullable=True, default={})
 
-    model_id = Column(String, ForeignKey('model_definitions.model_id'))
-    model_definition = relationship("ModelDefinition", back_populates="test_runs")
+    # model_id = Column(String, ForeignKey('model_definitions.model_id'))
+    # model_definition = relationship("ModelDefinition", back_populates="test_runs")

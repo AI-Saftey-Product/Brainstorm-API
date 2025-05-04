@@ -78,6 +78,8 @@ async def run_evals(eval_id: str, db):
     # todo: there should also be detailed score/result store and endpoint which would show exact score, response etc
     #  for each dataset row for inspection in the UI
 
+    all_dicts = []
+
     async def result_generator():
         for split_key in dataset.keys():
             dataset_split = dataset[split_key]
@@ -91,10 +93,20 @@ async def run_evals(eval_id: str, db):
                     'prediction': prediction,
                     'score': score,
                 }
-                yield json.dumps(response) + "\n"
+                all_dicts.append(response)
+                json_string = json.dumps(response) + "\n"
+
+                yield json_string
         else:
             scorer.aggregate_scores()
-            yield json.dumps(scorer.agg_scores) + "\n"
+            all_dicts.append(scorer.agg_scores)
+            json_string = json.dumps(scorer.agg_scores) + "\n"
+
+            eval_definition.results = all_dicts
+            db.merge(eval_definition)
+            db.commit()
+
+            yield json_string
 
     return result_generator
 

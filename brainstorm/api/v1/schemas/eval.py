@@ -22,7 +22,7 @@ class PydanticEvalDefinition(BaseModel):
     description: Optional[str] = None
 
     parameters: Optional[Dict[str, Any]] = {}
-    results: Optional[Dict[str, Any]] = {}
+    results: Optional[List[Dict[str, Any]]] = None
 
     class Config:
         orm_mode = True

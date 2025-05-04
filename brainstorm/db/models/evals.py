@@ -4,7 +4,7 @@ from enum import Enum
 
 from pydantic import validator, field_validator
 from sqlalchemy import Column, String, DateTime, JSON, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from datetime import datetime
 
 from sqlalchemy.orm import relationship
@@ -60,5 +60,4 @@ class EvalDefinition(Base):
     # Configuration
     parameters = Column(JSON, nullable=True, default={})
 
-    results = Column(JSON, nullable=True, default={})
-
+    results = Column(JSON, nullable=True, default=[])

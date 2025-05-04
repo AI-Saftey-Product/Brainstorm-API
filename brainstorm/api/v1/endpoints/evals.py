@@ -85,6 +85,7 @@ async def get_evals(
         stmt = stmt.filter_by(eval_id=eval_id)
 
     models = db.execute(stmt).scalars().all()
+
     return models
 
 
