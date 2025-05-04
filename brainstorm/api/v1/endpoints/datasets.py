@@ -8,6 +8,7 @@ import logging
 from fastapi import Response
 
 from brainstorm.api.v1.schemas.dataset import PydanticDatasetDefinition
+from brainstorm.datasets.initial_datasets import DATASETS_MAP
 from brainstorm.db.base import get_db
 from brainstorm.db.models.datasets import DatasetDefinition
 
@@ -70,7 +71,35 @@ async def get_datasets(
         stmt = stmt.filter_by(dataset_id=dataset_id)
 
     models = db.execute(stmt).scalars().all()
+
     return models
+
+
+@router.get("/get_dataset_preview")
+async def get_dataset_preview(
+        dataset_id: str,
+        db: Session = Depends(get_db),
+):
+    """
+    Get a list of models.
+    """
+    stmt = select(DatasetDefinition)
+
+    if dataset_id:
+        stmt = stmt.filter_by(dataset_id=dataset_id)
+
+    models = db.execute(stmt).scalars().all()
+
+    dataset_instance = DATASETS_MAP[models[0].dataset_adapter](dataset_definition=models[0])
+
+    preview = {}
+    for split_key in dataset_instance.keys():
+        split_len = len(dataset_instance[split_key])
+        rows = dataset_instance[split_key].select(range(min(split_len, 10)))
+        preview[split_key] = [dict(row) for row in rows]
+
+    # split -> [rows] where each row is a dict like field: value
+    return preview
 
 
 @router.post("/delete_datasets")

@@ -11,6 +11,7 @@ from fastapi import Response
 
 from fastapi.responses import JSONResponse
 
+from brainstorm.api.v1.schemas.eval import PydanticEvalDefinition
 from brainstorm.db.base import get_db
 from brainstorm.api.v1.schemas.model import (
     PydanticModelDefinition
@@ -105,6 +106,24 @@ async def get_models(
 
     models = db.execute(stmt).scalars().all()
     return models
+
+
+@router.get("/get_model_evals", response_model=List[PydanticEvalDefinition])
+async def get_model_evals(
+        model_id: str,
+        db: Session = Depends(get_db),
+):
+    """
+    Get a list of models.
+    """
+    stmt = select(ModelDefinition)
+
+    if model_id:
+        stmt = stmt.filter_by(model_id=model_id)
+
+    model = db.execute(stmt).scalar_one_or_none()
+
+    return model.eval_definitions
 
 
 @router.post("/delete_models")
