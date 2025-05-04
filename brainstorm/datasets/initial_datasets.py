@@ -82,8 +82,9 @@ class Dataset:
 
 
 class TruthfulQA(Dataset):
-    suggested_scorers = ["accuracy"]
+    suggested_scorers = ["ExactStringMatchScorer"]
     suggested_agg_dimensions = ["Type", "Category"]
+    suggested_agg_functions = ["accuracy"]
 
     def download_raw_data(self, try_cache=True):
         data_prefix = 'raw_data/TruthfulQA'
@@ -120,8 +121,9 @@ class TruthfulQA(Dataset):
 
 
 class MuSR(Dataset):
-    suggested_scorers = ["accuracy"]
+    suggested_scorers = ["ExactStringMatchScorer"]
     suggested_agg_dimensions = []
+    suggested_agg_functions = ["accuracy"]
 
     def download_raw_data(self, try_cache=True):
         data_prefix = 'raw_data/MuSR'
@@ -170,8 +172,9 @@ class MuSR(Dataset):
 
 
 class BBQ(Dataset):
-    suggested_scorers = ["accuracy"]
+    suggested_scorers = ["BBQBiasScore", "BBQFairnessScore"]
     suggested_agg_dimensions = ["question_polarity", "context_condition"]
+    suggested_agg_functions = ["sum", "mean"]
 
     def download_raw_data(self, try_cache=True):
         data_prefix = 'raw_data/BBQ'
