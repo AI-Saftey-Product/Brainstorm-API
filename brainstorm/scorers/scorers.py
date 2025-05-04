@@ -3,14 +3,14 @@ from typing import List, Dict
 
 from brainstorm.core.adapters import get_model_adapter
 from brainstorm.db.models.model import ModelDefinition, ModelModality, ModelSubType, ModelProvider
-
+import builtins
 
 def accuracy(scores: List[bool]) -> float:
     return sum(scores) / len(scores)
 
 
 def sum(scores: List[bool]) -> float:
-    return sum(scores)
+    return builtins.sum(scores)
 
 
 def mean(scores: List[bool]) -> float:

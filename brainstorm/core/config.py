@@ -50,15 +50,15 @@ class Settings(BaseSettings):
     elif os.environ.get('CLOUD_VIA_PROXY'):
         POSTGRES_HOST: str = "postgresql://backend_user:LPTd*6AeOy)1m8Al@127.0.0.1:5633/backend_db"
     else:
-        # POSTGRES_HOST: str = "postgresql://user:password@/brainstorm_test_api_local"
-        unix_socket_path = '/cloudsql/hirundo-trial:us-central1:main-db'
-        POSTGRES_HOST: str = sqlalchemy.engine.url.URL.create(
-            drivername="postgresql+pg8000",
-            username='backend_user',
-            password='LPTd*6AeOy)1m8Al',
-            database='backend_db',
-            query={"unix_sock": f"{unix_socket_path}/.s.PGSQL.5432"},
-        ),
+        POSTGRES_HOST: str = "postgresql://backend_user:LPTd*6AeOy)1m8Al@/cloudsql/hirundo-trial:us-central1:main-db:5432/backend_db"
+        # unix_socket_path = '/cloudsql/hirundo-trial:us-central1:main-db'
+        # POSTGRES_HOST: str = sqlalchemy.engine.url.URL.create(
+        #     drivername="postgresql+pg8000",
+        #     username='backend_user',
+        #     password='LPTd*6AeOy)1m8Al',
+        #     database='backend_db',
+        #     query={"unix_sock": f"{unix_socket_path}/.s.PGSQL.5432"},
+        # ),
 
     DATA_BUCKET: str = "eval_datasets_store"
     
