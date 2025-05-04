@@ -83,7 +83,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
     access_token = create_access_token(
         data={"sub": user["username"]},
-        expires_delta=timedelta(minutes=30)
+        expires_delta=timedelta(minutes=43200),
     )
     return {"access_token": access_token, "token_type": "bearer"}
 

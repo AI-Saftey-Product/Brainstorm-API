@@ -38,10 +38,12 @@ async def run_evals(eval_id: str, db):
     eval_definition = db.execute(eval_stmt).scalar_one_or_none()
 
     # todo: we should do this via defaults or something, don't like messing with def after its retrieved
-    if eval_definition.scorer_agg_dimensions is None:
+    if eval_definition.scorer_agg_dimensions is None or eval_definition.scorer_agg_dimensions == '':
         eval_definition.scorer_agg_dimensions = ['dataset_split_key']
     elif 'dataset_split_key' not in eval_definition.scorer_agg_dimensions:
         eval_definition.scorer_agg_dimensions.append('dataset_split_key')
+    # todo: also prevent this at model and UI levels
+    eval_definition.scorer_agg_dimensions = [i for i in eval_definition.scorer_agg_dimensions if i != '']
 
     # model_stmt = select(ModelDefinition).filter_by(model_id=eval_definition.model_id)
     model_definition = eval_definition.model_definition

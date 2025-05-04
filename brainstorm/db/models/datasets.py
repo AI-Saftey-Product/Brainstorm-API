@@ -40,6 +40,7 @@ class DatasetDefinition(Base):
     modality = Column(SQLEnum(DatasetModality, native_enum=False), nullable=False)
     dataset_adapter = Column(SQLEnum(DatasetAdapter, native_enum=False), nullable=False)
     sample_size = Column(Integer, nullable=True)
+    prompt_template = Column(String, nullable=True)
 
     # Configuration
     parameters = Column(JSON, nullable=True, default={})
