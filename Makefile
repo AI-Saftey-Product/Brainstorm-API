@@ -21,3 +21,9 @@ run:
 .PHONY: cloud-sql-proxy
 cloud-sql-proxy:
 	./cloud-sql-proxy --address 0.0.0.0 -p 5633 hirundo-trial:us-central1:main-db
+
+
+.PHONY: deploy
+deploy:
+	poetry export -f requirements.txt --output requirements.txt
+	gcloud app deploy --quiet

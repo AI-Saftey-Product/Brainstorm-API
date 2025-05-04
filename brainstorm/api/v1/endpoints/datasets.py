@@ -93,6 +93,28 @@ async def get_dataset_evals(
 
     return model.eval_definitions
 
+@router.get("/get_dataset_suggested_scorers")
+async def get_dataset_evals(
+        dataset_id: str,
+        db: Session = Depends(get_db),
+):
+    """
+    Get a list of models.
+    """
+    stmt = select(DatasetDefinition)
+
+    if dataset_id:
+        stmt = stmt.filter_by(dataset_id=dataset_id)
+
+    model = db.execute(stmt).scalar_one_or_none()
+
+    dataset_instance = DATASETS_MAP[model.dataset_adapter]
+
+    return {
+        "suggested_scorers": dataset_instance.suggested_scorers,
+        "suggested_agg_dimensions": dataset_instance.suggested_agg_dimensions,
+    }
+
 
 @router.get("/get_dataset_preview")
 async def get_dataset_preview(
