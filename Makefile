@@ -16,7 +16,7 @@ migrate:
 
 .PHONY: run
 run:
-	CLOUD_VIA_PROXY=1 uvicorn brainstorm.core.main:app --reload
+	uvicorn brainstorm.core.main:app --reload
 
 .PHONY: cloud-sql-proxy
 cloud-sql-proxy:

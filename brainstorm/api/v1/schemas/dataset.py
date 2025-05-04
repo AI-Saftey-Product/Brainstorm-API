@@ -18,6 +18,8 @@ class PydanticDatasetDefinition(BaseModel):
     dataset_adapter: str  # todo: add validation
     sample_size: Optional[int] = None
 
+    prompt_template: Optional[str] = None
+
     parameters: Optional[Dict[str, Any]] = {}
 
     class Config:
