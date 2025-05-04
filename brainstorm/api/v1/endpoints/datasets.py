@@ -112,7 +112,7 @@ async def get_dataset_suggested_scorers_and_dimensions(
 
     # todo: datasets can suggested multiple scorers but currently Eval and runner only support 1 scorer
     return {
-        "suggested_scorers": dataset_instance.suggested_scorers[0],
+        "suggested_scorers": dataset_instance.suggested_scorers,
         "suggested_agg_dimensions": dataset_instance.suggested_agg_dimensions,
         "suggested_agg_functions": dataset_instance.suggested_agg_functions,
     }
