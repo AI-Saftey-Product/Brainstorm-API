@@ -8,6 +8,7 @@ import logging
 from fastapi import Response
 
 from brainstorm.api.v1.schemas.dataset import PydanticDatasetDefinition
+from brainstorm.api.v1.schemas.eval import PydanticEvalDefinition
 from brainstorm.datasets.initial_datasets import DATASETS_MAP
 from brainstorm.db.base import get_db
 from brainstorm.db.models.datasets import DatasetDefinition
@@ -73,6 +74,24 @@ async def get_datasets(
     models = db.execute(stmt).scalars().all()
 
     return models
+
+
+@router.get("/get_dataset_evals", response_model=List[PydanticEvalDefinition])
+async def get_dataset_evals(
+        dataset_id: str,
+        db: Session = Depends(get_db),
+):
+    """
+    Get a list of models.
+    """
+    stmt = select(DatasetDefinition)
+
+    if dataset_id:
+        stmt = stmt.filter_by(dataset_id=dataset_id)
+
+    model = db.execute(stmt).scalar_one_or_none()
+
+    return model.eval_definitions
 
 
 @router.get("/get_dataset_preview")
