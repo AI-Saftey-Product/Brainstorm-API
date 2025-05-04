@@ -93,8 +93,8 @@ async def get_dataset_evals(
 
     return model.eval_definitions
 
-@router.get("/get_dataset_suggested_scorers")
-async def get_dataset_evals(
+@router.get("/get_dataset_suggested_scorers_and_dimensions")
+async def get_dataset_suggested_scorers_and_dimensions(
         dataset_id: str,
         db: Session = Depends(get_db),
 ):
