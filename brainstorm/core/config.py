@@ -1,3 +1,6 @@
+import os
+
+import sqlalchemy
 from pydantic_settings import BaseSettings
 from typing import Optional, List
 
@@ -22,7 +25,8 @@ class Settings(BaseSettings):
         "http://localhost:3001",  # React default port
         "http://localhost:8000",  # FastAPI default port
         "http://127.0.0.1:8000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
+        "https://hirundo-trial.uc.r.appspot.com",
     ]
     
     # Security
@@ -41,7 +45,22 @@ class Settings(BaseSettings):
     # Storage
     STORAGE_PATH: str = "./storage"
 
-    POSTGRES_HOST: str = "postgresql://user:password@localhost:5432/brainstorm_test_api_local"
+    if os.environ.get('LOCAL_DOCKER'):
+        POSTGRES_HOST: str = "postgresql://user:password@localhost:5432/brainstorm_test_api_local"
+    elif os.environ.get('CLOUD_VIA_PROXY'):
+        POSTGRES_HOST: str = "postgresql://backend_user:LPTd*6AeOy)1m8Al@127.0.0.1:5633/backend_db"
+    else:
+        POSTGRES_HOST: str = "postgresql://backend_user:LPTd*6AeOy)1m8Al@/cloudsql/hirundo-trial:us-central1:main-db:5432/backend_db"
+        # unix_socket_path = '/cloudsql/hirundo-trial:us-central1:main-db'
+        # POSTGRES_HOST: str = sqlalchemy.engine.url.URL.create(
+        #     drivername="postgresql+pg8000",
+        #     username='backend_user',
+        #     password='LPTd*6AeOy)1m8Al',
+        #     database='backend_db',
+        #     query={"unix_sock": f"{unix_socket_path}/.s.PGSQL.5432"},
+        # ),
+
+    DATA_BUCKET: str = "eval_datasets_store"
     
     # Don't load from .env files
     # class Config:

@@ -24,6 +24,8 @@ class PydanticModelDefinition(BaseModel):
 
     parameters: Optional[Dict[str, Any]] = {}
 
+    eval_ids: Optional[List[str]] = []
+
     # todo: mapping for supported providers vs modalities vs subtypes
 
     class Config:

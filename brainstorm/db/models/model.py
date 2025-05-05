@@ -50,6 +50,7 @@ class ModelProvider(str, Enum):
     OPENAI = "OPENAI"
     # ANTHROPIC = "Anthropic"
     LLAMA = "LLAMA"
+    GCP_MAAS = "GCP_MAAS"
 
 
 class ModelDefinition(Base):
@@ -73,4 +74,6 @@ class ModelDefinition(Base):
     # Configuration
     parameters = Column(JSON, nullable=True, default={})
 
-    test_runs = relationship("TestRun", back_populates="model_definition")
+    # test_runs = relationship("TestRun", back_populates="model_definition")
+
+    eval_definitions = relationship("EvalDefinition", back_populates="model_definition")

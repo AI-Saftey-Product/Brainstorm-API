@@ -8,3 +8,22 @@ generate_migrations:
 .PHONY: apply_migrations
 apply_migrations:
 	alembic upgrade head
+
+.PHONY: migrate
+migrate:
+	make generate_migrations
+	make apply_migrations
+
+.PHONY: run
+run:
+	CLOUD_VIA_PROXY=1 uvicorn brainstorm.core.main:app --reload
+
+.PHONY: cloud-sql-proxy
+cloud-sql-proxy:
+	./cloud-sql-proxy --address 0.0.0.0 -p 5633 hirundo-trial:us-central1:main-db
+
+
+.PHONY: deploy
+deploy:
+	poetry export -f requirements.txt --output requirements.txt
+	gcloud app deploy --quiet

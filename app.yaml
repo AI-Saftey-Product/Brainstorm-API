@@ -1,0 +1,11 @@
+service: backend
+runtime: python312
+entrypoint: uvicorn brainstorm.core.main:app --host 0.0.0.0 --port $PORT
+instance_class: F1
+
+automatic_scaling:
+  max_idle_instances: 1
+  min_idle_instances: 0
+  max_pending_latency: 10s
+  max_instances: 1
+  min_instances: 0

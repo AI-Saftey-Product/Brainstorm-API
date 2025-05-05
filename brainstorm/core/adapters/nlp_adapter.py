@@ -7,6 +7,8 @@ import uuid
 import asyncio  # Added for sleep functionality
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union, Iterator
+
+from brainstorm.core.adapters.gcp_maas_adapter import GCP_MAAS_NLPAdapter
 from brainstorm.core.adapters.openai_adapter import OpenAINLPAdapter
 from brainstorm.core.adapters.llama_adapter import LlamaNLPAdapter
 import httpx
@@ -627,7 +629,7 @@ class HuggingFaceNLPAdapter(BaseModelAdapter):
 
 
 # Factory function to get the right adapter based on model configuration
-def get_nlp_adapter(model_config: ModelDefinition) -> OpenAINLPAdapter | HuggingFaceNLPAdapter | LlamaNLPAdapter | GenericNLPAdapter:
+def get_nlp_adapter(model_config: ModelDefinition) -> GCP_MAAS_NLPAdapter | OpenAINLPAdapter | HuggingFaceNLPAdapter | LlamaNLPAdapter | GenericNLPAdapter:
     """Get the appropriate adapter for an NLP model."""
     # First check direct source property
     provider = model_config.provider
@@ -642,6 +644,9 @@ def get_nlp_adapter(model_config: ModelDefinition) -> OpenAINLPAdapter | Hugging
     elif provider == "llama":
         logger.info(f"Using Llama adapter for source: {provider}, model: {model_id}")
         return LlamaNLPAdapter(model_config)
+    elif provider == ModelProvider.GCP_MAAS:
+        logger.info(f"Using GCP_MAAS adapter for source: {provider}, model: {model_id}")
+        return GCP_MAAS_NLPAdapter(model_config)
     else:
         logger.info(f"Using Generic adapter for source: {provider}, model: {model_id}")
         return GenericNLPAdapter()
